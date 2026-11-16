@@ -1,4 +1,10 @@
+using ChatApp.Api.Data;
+using Microsoft.EntityFrameworkCore;
+
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddDbContext<ChatDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 

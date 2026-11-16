@@ -39,7 +39,7 @@ The system has three parts:
 | Authentication | ASP.NET Core Identity + **Identity API endpoints** (`MapIdentityApi<AppUser>()`, bearer tokens) | Built in. Fits an SPA on a different origin. |
 | Data access | Entity Framework Core 10 (SQL Server provider) | Code-first migrations |
 | Database (Azure) | **Azure SQL Database**, serverless General Purpose (or the free offer) | Managed. Auto-pauses when idle, so it costs little for a small app. |
-| Database (local) | SQL Server 2022 Developer in Docker, or SQL Server LocalDB on Windows | Same provider as Azure |
+| Database (local) | SQL Server 2022 in Docker (`docker-compose.yml`) | Same provider as Azure |
 | Hosting (API) | Azure App Service, Linux, **B1** plan, **WebSockets ON**, **Always On ON**, 1 instance | F1 (free) has no Always On and limits WebSockets, so it's not suitable |
 | Hosting (UI) | Azure Static Web Apps, Free tier | Global CDN, free TLS |
 | Monitoring | Application Insights (OpenTelemetry) | Logs, failures, latency |
@@ -48,7 +48,7 @@ The system has three parts:
 ### Why Azure SQL Database
 
 - It's a relational model: users, conversations and messages are clearly related, and the unread count is a simple, indexed `COUNT`.
-- First-class EF Core support. The same engine runs locally (Docker or LocalDB) and in Azure.
+- First-class EF Core support. The same engine runs locally (in Docker) and in Azure.
 - Serverless tier or the free offer keeps cost close to zero at MVP scale.
 - Alternatives considered:
   - **Azure Database for PostgreSQL Flexible Server:** equally good, slightly more setup on Windows.
@@ -245,7 +245,7 @@ If the open conversation has unread messages, call `MarkRead`.
 
 | Environment | UI | API | Database |
 | --- | --- | --- | --- |
-| **Local** | `ng serve` → `http://localhost:4200` | `dotnet run` → `https://localhost:7100` | SQL Server in Docker or LocalDB |
+| **Local** | `ng serve` → `http://localhost:4200` | `dotnet run` → `https://localhost:7100` | SQL Server in Docker |
 | **Local UI + Azure API** | `ng serve` with `environment.azure.ts` | Azure App Service | Azure SQL |
 | **Azure** | Azure Static Web Apps | Azure App Service (Linux B1) | Azure SQL Database |
 

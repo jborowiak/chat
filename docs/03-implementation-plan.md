@@ -6,7 +6,7 @@ The plan assumes one developer. Estimates are in working days, about **4 weeks**
 
 ## Progress
 
-**Overall: 1 / 11 phases done** · Last updated: 16 Nov 2026
+**Overall: 2 / 11 phases done** · Last updated: 16 Nov 2026
 
 Status legend: ⬜ Not started · 🟡 In progress · ✅ Done · ⏸️ Blocked / postponed
 
@@ -15,7 +15,7 @@ To update: tick the task checkboxes (`- [x]`) inside each phase. When all of a p
 | # | Phase | Est. | Status | Demo at the end |
 | --- | --- | --- | --- | --- |
 | 0 | Repo and project skeletons | 1 d | ✅ Done | API and Angular app both run locally |
-| 1 | Database and data model | 1.5 d | ⬜ Not started | Migrations create the schema locally |
+| 1 | Database and data model | 1.5 d | ✅ Done | Migrations create the schema locally |
 | 2 | Authentication | 2 d | ⬜ Not started | Register, log in, log out from the Angular UI |
 | 3 | Contacts and history (REST only) | 2 d | ⬜ Not started | Contact list; a conversation shows stored messages |
 | 4 | UI layout and styling | 2 d | ⬜ Not started | Final look: sidebar, bubbles, composer, mobile view |
@@ -35,14 +35,14 @@ To update: tick the task checkboxes (`- [x]`) inside each phase. When all of a p
 - [x] Add a `.gitignore` for .NET and Node, plus a short `README.md` that explains how to run locally.
 - [x] **Done when:** `dotnet run` and `ng serve` both start, and the Angular app can call `/health`.
 
-## Phase 1 – Database and data model (1.5 d) · ⬜ Not started
+## Phase 1 – Database and data model (1.5 d) · ✅ Done
 
-- [ ] Start SQL Server locally: `docker run -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD=… -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest`. LocalDB also works.
-- [ ] Add packages: `Microsoft.EntityFrameworkCore.SqlServer`, `Microsoft.AspNetCore.Identity.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.Design`.
-- [ ] Create the entities `AppUser` (with `DisplayName`), `Conversation`, `ConversationMember` and `Message`, plus the indexes from technical requirements section 3.
-- [ ] `ChatDbContext : IdentityDbContext<AppUser>`. Store the connection string in user-secrets.
-- [ ] `dotnet ef migrations add Initial` and `dotnet ef database update`.
-- [ ] **Done when:** the tables and indexes exist in the local database.
+- [x] Start SQL Server locally: SQL Server 2022 in Docker via `docker-compose.yml` (`docker compose up -d`); the password is in the git-ignored `.env`.
+- [x] Add packages: `Microsoft.EntityFrameworkCore.SqlServer`, `Microsoft.AspNetCore.Identity.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.Design`.
+- [x] Create the entities `AppUser` (with `DisplayName`), `Conversation`, `ConversationMember` and `Message`, plus the indexes from technical requirements section 3.
+- [x] `ChatDbContext : IdentityDbContext<AppUser>`. Store the connection string in user-secrets.
+- [x] `dotnet ef migrations add Initial` and `dotnet ef database update`.
+- [x] **Done when:** the tables and indexes exist in the local database.
 
 ## Phase 2 – Authentication (2 d) · ⬜ Not started
 
