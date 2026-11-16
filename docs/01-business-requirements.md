@@ -25,7 +25,7 @@ Build a simple web chat that lets registered users have private, one-to-one text
 - Attachments (images, files, voice)
 - Editing or deleting messages
 - Read receipts ("seen") shown to the sender
-- Push notifications when the browser is closed
+- Browser (OS-level) and push notifications. These are not planned (see section 9).
 - Native mobile apps
 - End-to-end encryption
 - More than one backend server (scale-out)
@@ -90,12 +90,18 @@ The MVP is accepted when two people, on two different computers, can:
 
 ## 8. Assumptions
 
-- Anyone with the link can register. There is no invite system in the MVP.
+- Anyone with the link can register. There is no invite system.
 - Expected size: up to a few hundred registered users, under 100 online at once. One backend server is enough.
 - Messages are kept for as long as the account exists.
 
-## 9. Open questions
+## 9. Decisions
 
-- Should registration be restricted later, for example to invite-only or a single e-mail domain?
-- Is a retention limit needed, for example deleting messages older than N months?
-- Are browser (OS-level) notifications wanted in a later phase?
+| Question | Decision (16 Nov 2026) |
+| --- | --- |
+| Should registration be restricted, for example to invite-only or a single e-mail domain? | **No.** Registration stays open to anyone. |
+| Is a retention limit needed, for example deleting messages older than N months? | **No.** Messages are kept for as long as the account exists. |
+| Are browser (OS-level) notifications wanted in a later phase? | **No.** The in-app unread badges and the tab title counter are the only notification mechanisms. |
+
+## 10. Open questions
+
+None at the moment.

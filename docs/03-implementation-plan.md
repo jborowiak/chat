@@ -172,7 +172,6 @@ Prices are indicative. Check them in the Azure pricing calculator.
 ## After the MVP
 
 - Read receipts ("Seen" under the last message).
-- Browser notifications (Notifications API), and Web Push when the browser is closed.
 - Message edit and delete, emoji reactions, attachments (Azure Blob Storage).
 - Group conversations (the `ConversationMembers` table already supports more than 2 members).
 - Dark theme (the tokens are already in place).
