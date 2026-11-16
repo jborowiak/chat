@@ -265,7 +265,7 @@ The API base URL is set per Angular environment file (`environment.ts`, `environ
 ```
 /docs                      Business, technical, plan, UI design
 /backend
-  ChatApp.sln
+  ChatApp.slnx
   src/ChatApp.Api          Program.cs, Endpoints/, Hubs/ChatHub.cs, Data/ (DbContext, Entities, Migrations), Services/
   tests/ChatApp.Api.Tests  Unit + integration tests (WebApplicationFactory, SignalR .NET client)
 /frontend

@@ -6,7 +6,7 @@ The plan assumes one developer. Estimates are in working days, about **4 weeks**
 
 ## Progress
 
-**Overall: 0 / 11 phases done** · Last updated: 16 Nov 2026
+**Overall: 1 / 11 phases done** · Last updated: 16 Nov 2026
 
 Status legend: ⬜ Not started · 🟡 In progress · ✅ Done · ⏸️ Blocked / postponed
 
@@ -14,7 +14,7 @@ To update: tick the task checkboxes (`- [x]`) inside each phase. When all of a p
 
 | # | Phase | Est. | Status | Demo at the end |
 | --- | --- | --- | --- | --- |
-| 0 | Repo and project skeletons | 1 d | ⬜ Not started | API and Angular app both run locally |
+| 0 | Repo and project skeletons | 1 d | ✅ Done | API and Angular app both run locally |
 | 1 | Database and data model | 1.5 d | ⬜ Not started | Migrations create the schema locally |
 | 2 | Authentication | 2 d | ⬜ Not started | Register, log in, log out from the Angular UI |
 | 3 | Contacts and history (REST only) | 2 d | ⬜ Not started | Contact list; a conversation shows stored messages |
@@ -26,14 +26,14 @@ To update: tick the task checkboxes (`- [x]`) inside each phase. When all of a p
 | 9 | Hardening and tests | 2.5 d | ⬜ Not started | E2E suite green, security checklist done |
 | 10 | *(Could)* Online presence | 0.5 d | ⬜ Not started | Green online dot |
 
-## Phase 0 – Repo and project skeletons (1 d) · ⬜ Not started
+## Phase 0 – Repo and project skeletons (1 d) · ✅ Done
 
-- [ ] Install the .NET 10 SDK, Node.js LTS, Angular CLI (`npm i -g @angular/cli`), and Docker Desktop (or SQL Server LocalDB).
-- [ ] Backend: `dotnet new sln -n ChatApp`, `dotnet new web -n ChatApp.Api -o src/ChatApp.Api`, `dotnet new xunit -n ChatApp.Api.Tests -o tests/ChatApp.Api.Tests`.
-- [ ] Frontend: `ng new chat-app --style=scss --routing --ssr=false`.
-- [ ] Add `GET /health` and enable CORS for `http://localhost:4200`.
-- [ ] Add a `.gitignore` for .NET and Node, plus a short `README.md` that explains how to run locally.
-- [ ] **Done when:** `dotnet run` and `ng serve` both start, and the Angular app can call `/health`.
+- [x] Install the .NET 10 SDK, Node.js LTS, Angular CLI (`npm i -g @angular/cli`), and Docker Desktop (or SQL Server LocalDB).
+- [x] Backend: `dotnet new sln -n ChatApp`, `dotnet new web -n ChatApp.Api -o src/ChatApp.Api`, `dotnet new xunit -n ChatApp.Api.Tests -o tests/ChatApp.Api.Tests`.
+- [x] Frontend: `ng new chat-app --style=scss --routing --ssr=false`.
+- [x] Add `GET /health` and enable CORS for `http://localhost:4200`.
+- [x] Add a `.gitignore` for .NET and Node, plus a short `README.md` that explains how to run locally.
+- [x] **Done when:** `dotnet run` and `ng serve` both start, and the Angular app can call `/health`.
 
 ## Phase 1 – Database and data model (1.5 d) · ⬜ Not started
 
