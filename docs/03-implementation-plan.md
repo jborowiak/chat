@@ -6,7 +6,7 @@ The plan assumes one developer. Estimates are in working days, about **4 weeks**
 
 ## Progress
 
-**Overall: 2 / 11 phases done** · Last updated: 16 Nov 2026
+**Overall: 3 / 11 phases done** · Last updated: 16 Nov 2026
 
 Status legend: ⬜ Not started · 🟡 In progress · ✅ Done · ⏸️ Blocked / postponed
 
@@ -16,7 +16,7 @@ To update: tick the task checkboxes (`- [x]`) inside each phase. When all of a p
 | --- | --- | --- | --- | --- |
 | 0 | Repo and project skeletons | 1 d | ✅ Done | API and Angular app both run locally |
 | 1 | Database and data model | 1.5 d | ✅ Done | Migrations create the schema locally |
-| 2 | Authentication | 2 d | ⬜ Not started | Register, log in, log out from the Angular UI |
+| 2 | Authentication | 2 d | ✅ Done | Register, log in, log out from the Angular UI |
 | 3 | Contacts and history (REST only) | 2 d | ⬜ Not started | Contact list; a conversation shows stored messages |
 | 4 | UI layout and styling | 2 d | ⬜ Not started | Final look: sidebar, bubbles, composer, mobile view |
 | 5 | SignalR: live messaging | 3 d | ⬜ Not started | Two browsers, messages appear instantly |
@@ -44,16 +44,17 @@ To update: tick the task checkboxes (`- [x]`) inside each phase. When all of a p
 - [x] `dotnet ef migrations add Initial` and `dotnet ef database update`.
 - [x] **Done when:** the tables and indexes exist in the local database.
 
-## Phase 2 – Authentication (2 d) · ⬜ Not started
+## Phase 2 – Authentication (2 d) · ✅ Done
 
-- [ ] Backend: `AddIdentityApiEndpoints<AppUser>()` and `MapGroup("/api/auth").MapIdentityApi<AppUser>()`.
-- [ ] Backend: a custom register endpoint, or a post-register step, that sets `DisplayName`.
-- [ ] Backend: `GET /api/me`.
-- [ ] Backend: read the hub token from the query string (technical requirements section 7).
-- [ ] Frontend: `AuthService` with signals for the current user and tokens, stored in `localStorage`.
-- [ ] Frontend: `authInterceptor` that adds the bearer token and refreshes once on a 401.
-- [ ] Frontend: `authGuard`, plus login and register pages.
-- [ ] **Done when:** a user can register, log in, reload and stay logged in, and log out (US-01, US-02).
+- [x] Backend: persist the data protection keys in the database (`PersistKeysToDbContext`, migration `DataProtectionKeys`) so tokens survive restarts.
+- [x] Backend: `AddIdentityApiEndpoints<AppUser>()` and `MapGroup("/api/auth").MapIdentityApi<AppUser>()`.
+- [x] Backend: a custom register endpoint, or a post-register step, that sets `DisplayName`.
+- [x] Backend: `GET /api/me`.
+- [x] Backend: read the hub token from the query string (technical requirements section 7).
+- [x] Frontend: `AuthService` with signals for the current user and tokens, stored in `localStorage`.
+- [x] Frontend: `authInterceptor` that adds the bearer token and refreshes once on a 401.
+- [x] Frontend: `authGuard`, plus login and register pages.
+- [x] **Done when:** a user can register, log in, reload and stay logged in, and log out (US-01, US-02).
 
 ## Phase 3 – Contacts and history over REST (2 d) · ⬜ Not started
 

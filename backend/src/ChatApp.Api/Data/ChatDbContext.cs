@@ -1,11 +1,13 @@
 using ChatApp.Api.Data.Entities;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace ChatApp.Api.Data;
 
-public class ChatDbContext(DbContextOptions<ChatDbContext> options) : IdentityDbContext<AppUser>(options)
+public class ChatDbContext(DbContextOptions<ChatDbContext> options) : IdentityDbContext<AppUser>(options), IDataProtectionKeyContext
 {
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<ConversationMember> ConversationMembers => Set<ConversationMember>();
     public DbSet<Message> Messages => Set<Message>();
