@@ -78,6 +78,8 @@ export class ChatStateService {
   private typingTo: string | null = null;
   private typingSentAt = 0;
   private typingIdleTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Per conversation: the newest live message this tab counted as unread. Lets a late ConversationRead be recognised as stale. */
+  private readonly newestCountedUnread = new Map<number, number>();
   private lastSearch = '';
   private pendingSeq = 0;
 
@@ -93,6 +95,8 @@ export class ChatStateService {
   readonly hasMore = this._hasMore.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
+  /** Sum of all unread counts; drives the tab title. */
+  readonly totalUnread = computed(() => this._contacts().reduce((sum, c) => sum + c.unreadCount, 0));
   readonly selectedContact = computed(() => this._contacts().find((c) => c.userId === this._selectedUserId()) ?? null);
   readonly connected = this.hub.connected;
   readonly reconnecting = this.hub.reconnecting;
@@ -107,6 +111,13 @@ export class ChatStateService {
     this.hub.reconnected.subscribe(() => void this.resync());
     this.hub.userTyping.subscribe((id) => this.showTyping(id));
     this.hub.userStoppedTyping.subscribe((id) => this.hideTyping(id));
+    this.hub.conversationRead.subscribe((e) => this.onConversationRead(e.conversationId, e.lastReadMessageId));
+    // Coming back to the tab: whatever arrived in the open conversation meanwhile counts as read now (BR-11).
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (this.isVisible()) this.markOpenRead(true);
+      });
+    }
   }
 
   async loadContacts(search = ''): Promise<void> {
@@ -115,6 +126,7 @@ export class ChatStateService {
     if (search.trim()) params = params.set('search', search.trim());
     try {
       this._contacts.set(await firstValueFrom(this.http.get<Contact[]>(`${this.api}/contacts`, { params })));
+      this.newestCountedUnread.clear();
       this._error.set(null);
     } catch {
       this._error.set('Could not load contacts.');
@@ -134,6 +146,7 @@ export class ChatStateService {
       this._messages.update((live) => mergeMessages([...page].reverse(), live));
       this._hasMore.set(page.length === PAGE_SIZE);
       this._error.set(null);
+      this.markOpenRead(false); // opening a conversation reads it (BR-09)
     } catch {
       this._error.set('Could not load messages.');
     } finally {
@@ -235,6 +248,7 @@ export class ChatStateService {
     this.typingSafetyTimers.clear();
     this._typing.set(new Set());
     this._contacts.set([]);
+    this.newestCountedUnread.clear();
     this._selectedUserId.set(null);
     this._messages.set([]);
     this._pending.set([]);
@@ -247,7 +261,11 @@ export class ChatStateService {
     for (const id of [...this._typing()]) this.hideTyping(id);
     await this.loadContacts(this.lastSearch);
     const userId = this._selectedUserId();
-    if (userId) await this.fillGap(userId);
+    if (userId) {
+      await this.fillGap(userId);
+      // A MarkRead sent while offline was lost, so the fresh counts may include the open conversation.
+      this.markOpenRead(true);
+    }
   }
 
   private async transmit(clientMessageId: string): Promise<void> {
@@ -290,10 +308,58 @@ export class ChatStateService {
 
     const isOpen = this._selectedUserId() === otherId;
     const alreadyKnown = this._messages().some((m) => m.id === msg.id);
-    this.touchContact(otherId, msg, !isMine && !isOpen && !alreadyKnown);
+    this.touchContact(otherId, msg);
     if (isOpen) this._messages.update((list) => mergeMessages(list, [msg]));
-    if (!isMine) this.hideTyping(otherId); // a message from them ends "is typing"
-    // Marking the open conversation as read arrives in phase 7.
+    if (!isMine) {
+      this.hideTyping(otherId); // a message from them ends "is typing"
+      if (isOpen && this.isVisible()) {
+        // Seen live: read at once, no badge (BR-06).
+        this.setUnread(otherId, 0);
+        this.hub.markRead(msg.conversationId, msg.id);
+      } else if (!alreadyKnown) {
+        // Another conversation is open, or this tab is hidden: unread until the user looks (BR-08, BR-11).
+        this.newestCountedUnread.set(msg.conversationId, Math.max(this.newestCountedUnread.get(msg.conversationId) ?? 0, msg.id));
+        this.addUnread(otherId);
+      }
+    }
+  }
+
+  private isVisible(): boolean {
+    return typeof document === 'undefined' || document.visibilityState === 'visible';
+  }
+
+  /**
+   * Marks the open conversation read up to its newest known message and zeroes its badge straight away.
+   * `onlyIfUnread` skips the call when the badge is already 0 (used for visibility and reconnect events).
+   */
+  private markOpenRead(onlyIfUnread: boolean): void {
+    const contact = this.selectedContact();
+    const newest = this._messages().at(-1);
+    if (!contact || !newest || !this.isVisible()) return;
+    if (onlyIfUnread && contact.unreadCount === 0) return;
+    this.setUnread(contact.userId, 0);
+    this.hub.markRead(newest.conversationId, newest.id);
+  }
+
+  /** Another tab (or this one) read a conversation: clear its badge (BR-10), unless a newer message is still unread here. */
+  private onConversationRead(conversationId: number, lastReadMessageId: number): void {
+    const contact = this._contacts().find((c) => c.conversationId === conversationId);
+    if (!contact) return;
+    const newestUnread = this.newestCountedUnread.get(conversationId) ?? 0;
+    if (lastReadMessageId >= newestUnread) {
+      this.newestCountedUnread.delete(conversationId);
+      this.setUnread(contact.userId, 0);
+    } else {
+      void this.loadContacts(this.lastSearch); // a newer message arrived meanwhile; let the database decide the count
+    }
+  }
+
+  private setUnread(userId: string, count: number): void {
+    this._contacts.update((list) => list.map((c) => (c.userId === userId && c.unreadCount !== count ? { ...c, unreadCount: count } : c)));
+  }
+
+  private addUnread(userId: string): void {
+    this._contacts.update((list) => list.map((c) => (c.userId === userId ? { ...c, unreadCount: c.unreadCount + 1 } : c)));
   }
 
   /** Shows the dots for a user and (re)starts the 5 s safety timer that covers lost StopTyping events. */
@@ -315,8 +381,8 @@ export class ChatStateService {
     }
   }
 
-  /** Updates a contact's preview and time, moves it to the top, and optionally counts one more unread. */
-  private touchContact(userId: string, msg: Message, countUnread: boolean): void {
+  /** Updates a contact's preview and time and moves it to the top. */
+  private touchContact(userId: string, msg: Message): void {
     this._contacts.update((list) => {
       const i = list.findIndex((c) => c.userId === userId);
       if (i < 0) return list;
@@ -326,7 +392,6 @@ export class ChatStateService {
         conversationId: msg.conversationId,
         lastMessagePreview: msg.body.length <= PREVIEW_LENGTH ? msg.body : msg.body.slice(0, PREVIEW_LENGTH) + '...',
         lastMessageAt: msg.sentAt,
-        unreadCount: c.unreadCount + (countUnread ? 1 : 0),
       };
       return [updated, ...list.slice(0, i), ...list.slice(i + 1)];
     });

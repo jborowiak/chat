@@ -12,7 +12,7 @@ public record SendResult(SendFailure Failure, MessageDto? Message, bool IsDuplic
     public bool Ok => Failure == SendFailure.None;
 }
 
-/// <summary>Steps 1-4 and 6 of SendMessage (technical requirements section 5): validate, get/create conversation, de-duplicate, save.</summary>
+/// <summary>Steps 1-4 and 6 of SendMessage (technical requirements section 5) plus the read marker of MarkRead.</summary>
 public class MessageService(ChatDbContext db)
 {
     public async Task<SendResult> SendAsync(string senderId, string recipientId, Guid clientMessageId, string? rawBody, CancellationToken ct = default)
@@ -35,6 +35,10 @@ public class MessageService(ChatDbContext db)
             db.Conversations.Add(conversation);
         }
 
+        // Saving the message and the sender's read marker must succeed or fail together. The marker needs the generated
+        // message id, so it is a second SaveChanges inside one transaction (skipped on the non-relational test provider).
+        await using var tx = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(ct) : null;
+
         var now = DateTime.UtcNow;
         var message = new Message { Conversation = conversation, SenderId = senderId, Body = body, ClientMessageId = clientMessageId, SentAt = now };
         conversation.LastMessageAt = now;
@@ -52,12 +56,31 @@ public class MessageService(ChatDbContext db)
             return new(SendFailure.None, winner, true);
         }
 
-        // The sender has read their own message (BR-09). Needs the generated id, so it is a second small write.
+        // The sender has read their own message (BR-09).
         var senderMember = conversation.Members.First(m => m.UserId == senderId);
         senderMember.LastReadMessageId = Math.Max(senderMember.LastReadMessageId ?? 0, message.Id);
         await db.SaveChangesAsync(ct);
+        if (tx is not null) await tx.CommitAsync(ct);
 
         return new(SendFailure.None, MessageDto.From(message), false);
+    }
+
+    /// <summary>
+    /// Moves the caller's read position forward (never back) and returns the stored value, or null if the caller is not a member.
+    /// The requested id is capped at the newest message of the conversation, so a wrong or future id can't mark later messages read.
+    /// </summary>
+    public async Task<long?> MarkReadAsync(string userId, int conversationId, long lastReadMessageId, CancellationToken ct = default)
+    {
+        var member = await db.ConversationMembers.FirstOrDefaultAsync(m => m.ConversationId == conversationId && m.UserId == userId, ct);
+        if (member is null) return null;
+        var newest = await db.Messages.Where(m => m.ConversationId == conversationId).MaxAsync(m => (long?)m.Id, ct) ?? 0;
+        var target = Math.Min(Math.Max(lastReadMessageId, 0), newest);
+        if (target > (member.LastReadMessageId ?? 0))
+        {
+            member.LastReadMessageId = target;
+            await db.SaveChangesAsync(ct);
+        }
+        return member.LastReadMessageId ?? 0;
     }
 
     private async Task<MessageDto?> FindDuplicate(string senderId, Guid clientMessageId, CancellationToken ct)

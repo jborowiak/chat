@@ -39,9 +39,7 @@
             </span>
             <span class="contact-meta">
               <span class="contact-time">{{ listTime(c.lastMessageAt) }}</span>
-              @if (c.unreadCount > 0) {
-                <span class="badge">{{ c.unreadCount > 99 ? '99+' : c.unreadCount }}</span>
-              }
+              <app-unread-badge [count]="c.unreadCount" />
             </span>
           </button>
         </li>

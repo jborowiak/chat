@@ -20,7 +20,7 @@ public class ChatHubTests(ApiFactory factory) : IClassFixture<ApiFactory>, IAsyn
         foreach (var c in _connections) await c.DisposeAsync();
     }
 
-    private sealed record Client(HubConnection Hub, Channel<MessageDto> Received, Channel<string> Typing, string Id, string Token, string Name);
+    private sealed record Client(HubConnection Hub, Channel<MessageDto> Received, Channel<string> Typing, Channel<(int ConversationId, long LastRead)> Reads, string Id, string Token, string Name);
 
     private async Task<(string Id, string Token)> Register(string name)
     {
@@ -50,9 +50,11 @@ public class ChatHubTests(ApiFactory factory) : IClassFixture<ApiFactory>, IAsyn
         hub.On<MessageDto>("ReceiveMessage", m => received.Writer.TryWrite(m));
         hub.On<string>("UserTyping", u => typing.Writer.TryWrite("typing:" + u));
         hub.On<string>("UserStoppedTyping", u => typing.Writer.TryWrite("stopped:" + u));
+        var reads = Channel.CreateUnbounded<(int, long)>();
+        hub.On<int, long>("ConversationRead", (c, m) => reads.Writer.TryWrite((c, m)));
         _connections.Add(hub);
         await hub.StartAsync();
-        return new Client(hub, received, typing, id, token, name);
+        return new Client(hub, received, typing, reads, id, token, name);
     }
 
     private async Task<Client> NewClient(string name)
@@ -245,5 +247,77 @@ public class ChatHubTests(ApiFactory factory) : IClassFixture<ApiFactory>, IAsyn
 
         await a.Hub.InvokeAsync("Typing", b.Id); // still works
         Assert.Equal($"typing:{a.Id}", await NextTyping(b));
+    }
+
+    private async Task<int> UnreadFor(Client viewer, Client other) =>
+        (await HttpFor(viewer.Token).GetFromJsonAsync<ContactDto[]>("/api/contacts"))!.Single(c => c.UserId == other.Id).UnreadCount;
+
+    private static async Task<(int ConversationId, long LastRead)> NextRead(Client c)
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        return await c.Reads.Reader.ReadAsync(cts.Token);
+    }
+
+    [Fact]
+    public async Task MarkRead_clears_the_unread_count_and_tells_the_callers_other_tab_but_not_the_sender()
+    {
+        var a = await NewClient("Alice");
+        var b = await NewClient("Bob");
+        var a2 = await Connect(a.Id, a.Token, a.Name); // Alice's second tab
+        MessageDto last = null!;
+        for (var i = 0; i < 3; i++) last = await b.Hub.InvokeAsync<MessageDto>("SendMessage", a.Id, Guid.NewGuid(), $"m{i}");
+        for (var i = 0; i < 3; i++) await Next(a);
+        Assert.Equal(3, await UnreadFor(a, b));
+
+        await a.Hub.InvokeAsync("MarkRead", last.ConversationId, last.Id);
+
+        Assert.Equal(0, await UnreadFor(a, b));
+        Assert.Equal((last.ConversationId, last.Id), await NextRead(a));
+        Assert.Equal((last.ConversationId, last.Id), await NextRead(a2));
+        await Task.Delay(200);
+        Assert.False(b.Reads.Reader.TryRead(out _)); // Bob's badges are not affected
+    }
+
+    [Fact]
+    public async Task MarkRead_never_moves_backwards_and_cannot_mark_future_messages_read()
+    {
+        var a = await NewClient("Alice");
+        var b = await NewClient("Bob");
+        var first = await b.Hub.InvokeAsync<MessageDto>("SendMessage", a.Id, Guid.NewGuid(), "one");
+        var second = await b.Hub.InvokeAsync<MessageDto>("SendMessage", a.Id, Guid.NewGuid(), "two");
+
+        await a.Hub.InvokeAsync("MarkRead", first.ConversationId, second.Id);
+        await a.Hub.InvokeAsync("MarkRead", first.ConversationId, first.Id); // older value: ignored
+        Assert.Equal((first.ConversationId, second.Id), await NextRead(a));
+        Assert.Equal((first.ConversationId, second.Id), await NextRead(a)); // the stored (max) value is what is pushed
+
+        // A huge id is capped at the newest message, so a message sent later is still unread.
+        await a.Hub.InvokeAsync("MarkRead", first.ConversationId, long.MaxValue);
+        Assert.Equal((first.ConversationId, second.Id), await NextRead(a));
+        await b.Hub.InvokeAsync<MessageDto>("SendMessage", a.Id, Guid.NewGuid(), "three");
+        Assert.Equal(1, await UnreadFor(a, b));
+    }
+
+    [Fact]
+    public async Task MarkRead_rejects_a_conversation_the_caller_is_not_a_member_of()
+    {
+        var a = await NewClient("Alice");
+        var b = await NewClient("Bob");
+        var eve = await NewClient("Eve");
+        var m = await b.Hub.InvokeAsync<MessageDto>("SendMessage", a.Id, Guid.NewGuid(), "secret");
+
+        await Assert.ThrowsAsync<HubException>(() => eve.Hub.InvokeAsync("MarkRead", m.ConversationId, m.Id));
+        await Assert.ThrowsAsync<HubException>(() => eve.Hub.InvokeAsync("MarkRead", 99999, 1L));
+        Assert.Equal(1, await UnreadFor(a, b)); // untouched
+    }
+
+    [Fact]
+    public async Task Sending_marks_the_senders_own_message_read_in_the_same_write()
+    {
+        var a = await NewClient("Alice");
+        var b = await NewClient("Bob");
+        await a.Hub.InvokeAsync<MessageDto>("SendMessage", b.Id, Guid.NewGuid(), "hi");
+        Assert.Equal(0, await UnreadFor(a, b));
+        Assert.Equal(1, await UnreadFor(b, a));
     }
 }

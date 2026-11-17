@@ -129,10 +129,10 @@ Contacts are sorted by `lastMessageAt` descending, then by `displayName`.
 
 | Method | Arguments | Server behaviour |
 | --- | --- | --- |
-| `SendMessage` | `recipientId: string, clientMessageId: Guid, body: string` | 1) Validate: recipient exists and isn't the caller; trimmed length is 1–2,000. 2) Get or create the conversation and its 2 member rows. 3) If `(sender, clientMessageId)` already exists, return the existing message (nothing is pushed again). 4) Insert the message, update `LastMessageAt`, and move the **sender's** `LastReadMessageId` to this message. 5) Push `ReceiveMessage(dto)` to `Clients.User(recipientId)` and `Clients.User(senderId)` (the sender's other tabs). 6) Return `MessageDto` as the acknowledgement. Invalid input throws a `HubException` with a short message. |
+| `SendMessage` | `recipientId: string, clientMessageId: Guid, body: string` | 1) Validate: recipient exists and isn't the caller; trimmed length is 1–2,000. 2) Get or create the conversation and its 2 member rows. 3) If `(sender, clientMessageId)` already exists, return the existing message (nothing is pushed again). 4) In one transaction: insert the message, update `LastMessageAt`, and move the **sender's** `LastReadMessageId` to this message. 5) Push `ReceiveMessage(dto)` to `Clients.User(recipientId)` and `Clients.User(senderId)` (the sender's other tabs). 6) Return `MessageDto` as the acknowledgement. Invalid input throws a `HubException` with a short message. |
 | `Typing` | `recipientId: string` | Forward `UserTyping(senderId)` to the recipient. Not stored. A self, empty or unknown recipient is silently ignored. |
 | `StopTyping` | `recipientId: string` | Forward `UserStoppedTyping(senderId)` to the recipient. |
-| `MarkRead` | `conversationId: int, lastReadMessageId: long` | Check that the caller is a member. Set `LastReadMessageId = max(current, value)`. Push `ConversationRead(conversationId, lastReadMessageId)` to `Clients.User(caller)` so the badges in the caller's other tabs clear (BR-10). |
+| `MarkRead` | `conversationId: int, lastReadMessageId: long` | Check that the caller is a member (otherwise `HubException`). Cap the value at the newest message id of the conversation, then set `LastReadMessageId = max(current, value)`. Push `ConversationRead(conversationId, storedLastReadMessageId)` to `Clients.User(caller)` so the badges in the caller's other tabs clear (BR-10). |
 
 ### Server → client (`IChatClient`)
 
@@ -141,7 +141,7 @@ Contacts are sorted by `lastMessageAt` descending, then by `displayName`.
 | `ReceiveMessage` | `MessageDto` | See section 6 |
 | `UserTyping` | `userId` | Show the dots for that contact and (re)start a 5 s safety timer |
 | `UserStoppedTyping` | `userId` | Hide the dots |
-| `ConversationRead` | `conversationId, lastReadMessageId` | Set the unread count for that conversation to 0 |
+| `ConversationRead` | `conversationId, lastReadMessageId` | Set the unread count for that conversation to 0, unless this tab counted a newer unread message meanwhile (then re-read `GET /api/contacts`) |
 | `PresenceChanged` *(Could)* | `userId, isOnline` | Update the online dot |
 
 Presence is tracked in memory with a `ConcurrentDictionary<userId, connectionCount>` in `OnConnectedAsync` and `OnDisconnectedAsync`. This is valid only because there is one server (section 10).

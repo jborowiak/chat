@@ -6,7 +6,7 @@ The plan assumes one developer. Estimates are in working days, about **4 weeks**
 
 ## Progress
 
-**Overall: 6 / 11 phases done** · Last updated: 17 Nov 2026
+**Overall: 8 / 11 phases done** · Last updated: 17 Nov 2026
 
 Status legend: ⬜ Not started · 🟡 In progress · ✅ Done · ⏸️ Blocked / postponed
 
@@ -20,8 +20,8 @@ To update: tick the task checkboxes (`- [x]`) inside each phase. When all of a p
 | 3 | Contacts and history (REST only) | 2 d | ✅ Done | Contact list; a conversation shows stored messages |
 | 4 | UI layout and styling | 2 d | ✅ Done | Final look: sidebar, bubbles, composer, mobile view |
 | 5 | SignalR: live messaging | 3 d | ✅ Done | Two browsers, messages appear instantly |
-| 6 | Typing indicator | 1 d | 🟡 In progress | Animated dots while the other person types |
-| 7 | Unread badges and read state | 2 d | ⬜ Not started | Badge shows 3, clears on open, syncs across tabs |
+| 6 | Typing indicator | 1 d | ✅ Done | Animated dots while the other person types |
+| 7 | Unread badges and read state | 2 d | ✅ Done | Badge shows 3, clears on open, syncs across tabs |
 | 8 | Azure deployment | 2 d | ⬜ Not started | Same demo on the Azure URLs |
 | 9 | Hardening and tests | 2.5 d | ⬜ Not started | E2E suite green, security checklist done |
 | 10 | *(Could)* Online presence | 0.5 d | ⬜ Not started | Green online dot |
@@ -87,29 +87,27 @@ To update: tick the task checkboxes (`- [x]`) inside each phase. When all of a p
 - [x] Integration test: two SignalR clients exchange a message, and a duplicate send is ignored.
 - [x] **Done when:** in two browsers (for example Chrome and Edge in private mode, logged in as A and B), messages appear instantly on both sides (US-04, US-05).
 
-## Phase 6 – Typing indicator (1 d) · 🟡 In progress
-
-Waiting for manual check: in two browsers (A and B), confirm the dots appear within about 1 s of B typing, bounce smoothly, vanish on send / clear / 5 s silence, and that the contact row shows "typing…".
+## Phase 6 – Typing indicator (1 d) · ✅ Done
 
 - [x] Hub methods `Typing` and `StopTyping`, and client events `UserTyping` and `UserStoppedTyping`.
 - [x] Composer: throttle `Typing` to once every 2 s, and send `StopTyping` after 3 s idle, on send, on clear, or on conversation switch.
 - [x] `TypingIndicatorComponent`: three animated dots inside a bubble, with a 5 s safety timeout and screen-reader text.
 - [x] A small "typing…" label in the contact list row.
 - [x] Angular unit test with fake timers.
-- [ ] **Done when:** BR-07 timings are met (US-06).
+- [x] **Done when:** BR-07 timings are met (US-06).
 
-## Phase 7 – Unread badges and read state (2 d) · ⬜ Not started
+## Phase 7 – Unread badges and read state (2 d) · ✅ Done
 
-- [ ] Hub `MarkRead` and client event `ConversationRead`.
-- [ ] Client logic from technical requirements section 6:
-  - [ ] Live message in the open, visible conversation → `MarkRead`.
-  - [ ] Otherwise → `unreadCount + 1`.
-  - [ ] On opening a conversation → `MarkRead` and set the count to 0.
-  - [ ] On `visibilitychange` back to visible → `MarkRead`.
-- [ ] Badge component (hidden at 0, "99+" above 99).
-- [ ] Tab title shows `(N) Chat`, driven by the computed `totalUnread`.
-- [ ] Integration test: B sends 3 → A's unread count is 3 → A calls `MarkRead` → 0, and A's second connection receives `ConversationRead`.
-- [ ] **Done when:** acceptance scenario 4 passes, both live and after logging in again (US-08, US-10, BR-08 to BR-11).
+- [x] Hub `MarkRead` and client event `ConversationRead`.
+- [x] Client logic from technical requirements section 6:
+  - [x] Live message in the open, visible conversation → `MarkRead`.
+  - [x] Otherwise → `unreadCount + 1`.
+  - [x] On opening a conversation → `MarkRead` and set the count to 0.
+  - [x] On `visibilitychange` back to visible → `MarkRead`.
+- [x] Badge component (hidden at 0, "99+" above 99).
+- [x] Tab title shows `(N) Chat`, driven by the computed `totalUnread`.
+- [x] Integration test: B sends 3 → A's unread count is 3 → A calls `MarkRead` → 0, and A's second connection receives `ConversationRead`.
+- [x] **Done when:** acceptance scenario 4 passes, both live and after logging in again (US-08, US-10, BR-08 to BR-11).
 
 ## Phase 8 – Azure deployment (2 d) · ⬜ Not started
 

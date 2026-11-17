@@ -32,6 +32,8 @@ export class ChatHubService {
   /** Ids of users who started / stopped typing to us. */
   readonly userTyping = new Subject<string>();
   readonly userStoppedTyping = new Subject<string>();
+  /** The user read a conversation (possibly in another tab): its badge should clear. */
+  readonly conversationRead = new Subject<{ conversationId: number; lastReadMessageId: number }>();
   /** Emits after the connection came back, so the app can resync with the database. */
   readonly reconnected = new Subject<void>();
 
@@ -83,6 +85,13 @@ export class ChatHubService {
     this.fireAndForget('StopTyping', recipientId);
   }
 
+  /** Tells the server the user has read a conversation up to this message. Dropped when offline; the app re-sends after a reconnect. */
+  markRead(conversationId: number, lastReadMessageId: number): void {
+    const conn = this.connection;
+    if (!conn || this._state() !== 'connected') return;
+    conn.send('MarkRead', conversationId, lastReadMessageId).catch(() => undefined);
+  }
+
   private fireAndForget(method: string, recipientId: string): void {
     if (!this.connection || this._state() !== 'connected') return;
     this.connection.send(method, recipientId).catch(() => undefined);
@@ -101,6 +110,9 @@ export class ChatHubService {
     conn.on('ReceiveMessage', (m: Message) => this.messageReceived.next(m));
     conn.on('UserTyping', (id: string) => this.userTyping.next(id));
     conn.on('UserStoppedTyping', (id: string) => this.userStoppedTyping.next(id));
+    conn.on('ConversationRead', (conversationId: number, lastReadMessageId: number) =>
+      this.conversationRead.next({ conversationId, lastReadMessageId }),
+    );
     conn.onreconnecting(() => {
       if (this.connection === conn) this._state.set('reconnecting');
     });

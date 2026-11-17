@@ -4,12 +4,13 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace ChatApp.Api.Hubs;
 
-/// <summary>Server-to-client events. Phases 7 and 10 add read and presence events.</summary>
+/// <summary>Server-to-client events. Phase 10 adds presence.</summary>
 public interface IChatClient
 {
     Task ReceiveMessage(MessageDto message);
     Task UserTyping(string userId);
     Task UserStoppedTyping(string userId);
+    Task ConversationRead(int conversationId, long lastReadMessageId);
 }
 
 [Authorize]
@@ -45,6 +46,18 @@ public class ChatHub(MessageService messages) : Hub<IChatClient>
 
     public Task StopTyping(string recipientId) =>
         IsValidTarget(recipientId, out var senderId) ? Clients.User(recipientId).UserStoppedTyping(senderId) : Task.CompletedTask;
+
+    /// <summary>
+    /// The caller has read the conversation up to a message (BR-09). Stored as max(current, value); every tab of the caller
+    /// is told, so their badges clear too (BR-10).
+    /// </summary>
+    public async Task MarkRead(int conversationId, long lastReadMessageId)
+    {
+        var userId = Context.UserIdentifier ?? throw new HubException("Not authenticated.");
+        var stored = await messages.MarkReadAsync(userId, conversationId, lastReadMessageId, Context.ConnectionAborted)
+            ?? throw new HubException("Conversation not found.");
+        await Clients.User(userId).ConversationRead(conversationId, stored);
+    }
 
     // Ephemeral hints are silently dropped when malformed, so a bad call never breaks the connection.
     private bool IsValidTarget(string? recipientId, out string senderId)

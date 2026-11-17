@@ -30,6 +30,8 @@ describe('ChatStateService', () => {
     userStoppedTyping: Subject<string>;
     sendTyping: ReturnType<typeof vi.fn>;
     sendStopTyping: ReturnType<typeof vi.fn>;
+    markRead: ReturnType<typeof vi.fn>;
+    conversationRead: Subject<{ conversationId: number; lastReadMessageId: number }>;
     connected: ReturnType<typeof signal<boolean>>;
     reconnecting: ReturnType<typeof signal<boolean>>;
     start: ReturnType<typeof vi.fn>;
@@ -46,6 +48,8 @@ describe('ChatStateService', () => {
       userStoppedTyping: new Subject<string>(),
       sendTyping: vi.fn(),
       sendStopTyping: vi.fn(),
+      markRead: vi.fn(),
+      conversationRead: new Subject<{ conversationId: number; lastReadMessageId: number }>(),
       connected: signal(true),
       reconnecting: signal(false),
       start: vi.fn(() => Promise.resolve()),
@@ -355,6 +359,139 @@ describe('ChatStateService', () => {
         expect(chat.isTyping('bob')).toBe(false);
         vi.advanceTimersByTime(TYPING_SAFETY_MS); // no timer fires afterwards
       });
+    });
+  });
+  describe('unread badges and read state (BR-06, BR-08 to BR-11)', () => {
+    const contact = (userId: string, extra: Partial<Contact> = {}): Contact => ({
+      userId, displayName: userId, conversationId: null, lastMessagePreview: null, lastMessageAt: null, unreadCount: 0, isOnline: false, ...extra,
+    });
+    const incoming = (id: number, senderId = 'carol', conversationId = 7): Message => ({
+      id, conversationId, senderId, body: `in${id}`, sentAt: '2026-01-02T00:00:00Z', clientMessageId: `cm${id}`,
+    });
+    const unread = (id: string) => chat.contacts().find((c) => c.userId === id)?.unreadCount;
+    let visibility: ReturnType<typeof vi.spyOn>;
+
+    const setVisible = (visible: boolean) => {
+      visibility.mockReturnValue(visible ? 'visible' : 'hidden');
+      document.dispatchEvent(new Event('visibilitychange'));
+    };
+
+    async function setup(carolUnread = 0, history: Message[] = []) {
+      const pc = chat.loadContacts();
+      ctrl.expectOne((r) => r.url.endsWith('/contacts')).flush([
+        contact('bob', { conversationId: 8 }),
+        contact('carol', { conversationId: 7, unreadCount: carolUnread }),
+      ]);
+      await pc;
+      return async (open: string) => {
+        const po = chat.selectContact(open);
+        ctrl.expectOne((r) => r.url.includes(`/${open}/messages`)).flush([...history].reverse());
+        await po;
+      };
+    }
+
+    beforeEach(() => {
+      visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    });
+    afterEach(() => visibility.mockRestore());
+
+    it('opening a conversation marks it read up to its newest message and clears the badge at once', async () => {
+      const open = await setup(3, [incoming(1), incoming(2), incoming(3)]);
+      expect(chat.totalUnread()).toBe(3);
+      await open('carol');
+      expect(unread('carol')).toBe(0);
+      expect(chat.totalUnread()).toBe(0);
+      expect(hub.markRead).toHaveBeenCalledWith(7, 3);
+    });
+
+    it('does not call MarkRead when opening an empty conversation', async () => {
+      const open = await setup();
+      await open('bob');
+      expect(hub.markRead).not.toHaveBeenCalled();
+    });
+
+    it('a live message in the open, visible conversation is marked read and never shows a badge (BR-06)', async () => {
+      const open = await setup(0, [incoming(1)]);
+      await open('carol');
+      hub.markRead.mockClear();
+      hub.messageReceived.next(incoming(2));
+      expect(unread('carol')).toBe(0);
+      expect(hub.markRead).toHaveBeenCalledExactlyOnceWith(7, 2);
+    });
+
+    it('a live message for another conversation adds to the badge, once even if pushed twice', async () => {
+      const open = await setup();
+      await open('bob');
+      hub.messageReceived.next(incoming(5));
+      hub.messageReceived.next(incoming(6));
+      expect(unread('carol')).toBe(2);
+      expect(chat.totalUnread()).toBe(2);
+      expect(hub.markRead).not.toHaveBeenCalled();
+    });
+
+    it('a live message in the open conversation while the tab is hidden counts as unread, and reading happens on return (BR-11)', async () => {
+      const open = await setup(0, [incoming(1)]);
+      await open('carol');
+      hub.markRead.mockClear();
+      setVisible(false);
+      hub.messageReceived.next(incoming(2));
+      hub.messageReceived.next(incoming(3));
+      expect(unread('carol')).toBe(2);
+      expect(chat.messages().map((m) => m.id)).toEqual([1, 2, 3]); // shown, just not counted as read
+      expect(hub.markRead).not.toHaveBeenCalled();
+
+      setVisible(true);
+      expect(unread('carol')).toBe(0);
+      expect(hub.markRead).toHaveBeenCalledExactlyOnceWith(7, 3);
+    });
+
+    it('becoming visible again does nothing when nothing is unread, or when no conversation is open', async () => {
+      const open = await setup(0, [incoming(1)]);
+      setVisible(true);
+      await open('carol');
+      hub.markRead.mockClear();
+      setVisible(true);
+      expect(hub.markRead).not.toHaveBeenCalled();
+    });
+
+    it('ConversationRead from another tab clears that badge only (BR-10)', async () => {
+      const open = await setup();
+      await open('bob');
+      hub.messageReceived.next(incoming(5));
+      hub.messageReceived.next(incoming(6, 'bob', 8));
+      hub.conversationRead.next({ conversationId: 7, lastReadMessageId: 5 });
+      expect(unread('carol')).toBe(0);
+      expect(unread('bob')).toBe(0); // bob is the open conversation
+      hub.messageReceived.next(incoming(9));
+      hub.conversationRead.next({ conversationId: 99, lastReadMessageId: 1 }); // unknown conversation: ignored
+      expect(unread('carol')).toBe(1);
+    });
+
+    it('a late ConversationRead older than a message we counted re-reads the counts instead of zeroing', async () => {
+      const open = await setup();
+      await open('bob');
+      hub.messageReceived.next(incoming(5));
+      hub.messageReceived.next(incoming(6));
+      hub.conversationRead.next({ conversationId: 7, lastReadMessageId: 5 });
+      ctrl.expectOne((r) => r.url.endsWith('/contacts')).flush([contact('bob', { conversationId: 8 }), contact('carol', { conversationId: 7, unreadCount: 1 })]);
+      await vi.waitFor(() => expect(unread('carol')).toBe(1));
+    });
+
+    it('after a reconnect, re-sends MarkRead if the fresh counts show unread messages in the open conversation', async () => {
+      const open = await setup(0, [incoming(1)]);
+      await open('carol');
+      hub.markRead.mockClear();
+      hub.reconnected.next();
+      ctrl.expectOne((r) => r.url.endsWith('/contacts')).flush([contact('bob', { conversationId: 8 }), contact('carol', { conversationId: 7, unreadCount: 2 })]);
+      await vi.waitFor(() => ctrl.expectOne((r) => r.url.includes('/carol/messages') && r.params.get('afterId') === '1').flush([incoming(2), incoming(3)]));
+      await vi.waitFor(() => expect(hub.markRead).toHaveBeenCalledExactlyOnceWith(7, 3));
+      expect(unread('carol')).toBe(0);
+    });
+
+    it('logout clears all counts', async () => {
+      await setup(4);
+      chat.clear();
+      expect(chat.totalUnread()).toBe(0);
     });
   });
 });

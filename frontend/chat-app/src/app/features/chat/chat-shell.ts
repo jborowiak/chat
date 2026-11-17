@@ -1,13 +1,15 @@
-import { Component, ElementRef, OnInit, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, OnInit, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Title } from '@angular/platform-browser';
 import { AuthService } from '../../core/auth.service';
 import { ChatStateService } from '../../core/chat-state.service';
 import { TypingIndicator } from './typing-indicator';
+import { UnreadBadge } from './unread-badge';
 import { avatarColour, buildThread, clock, initials, listTime } from './chat-view';
 
 @Component({
   selector: 'app-chat-shell',
-  imports: [FormsModule, TypingIndicator],
+  imports: [FormsModule, TypingIndicator, UnreadBadge],
   templateUrl: './chat-shell.html',
   styleUrl: './chat-shell.scss',
 })
@@ -29,6 +31,14 @@ export class ChatShell implements OnInit {
   private lastConversation: string | null = null;
 
   constructor() {
+    // Tab title "(3) Chat" while anything is unread (US-10).
+    const title = inject(Title);
+    effect(() => {
+      const n = this.chat.totalUnread();
+      title.setTitle(n > 0 ? `(${n > 99 ? '99+' : n}) Chat` : 'Chat');
+    });
+    inject(DestroyRef).onDestroy(() => title.setTitle('Chat'));
+
     // Jump to the bottom when the newest message changes: always when a conversation is opened or the
     // message is mine, otherwise only if the user is already near the bottom (so reading history isn't interrupted).
     // Prepending older messages leaves the newest one alone, so it doesn't scroll.
