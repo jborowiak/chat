@@ -20,7 +20,7 @@ public class ChatHubTests(ApiFactory factory) : IClassFixture<ApiFactory>, IAsyn
         foreach (var c in _connections) await c.DisposeAsync();
     }
 
-    private sealed record Client(HubConnection Hub, Channel<MessageDto> Received, string Id, string Token, string Name);
+    private sealed record Client(HubConnection Hub, Channel<MessageDto> Received, Channel<string> Typing, string Id, string Token, string Name);
 
     private async Task<(string Id, string Token)> Register(string name)
     {
@@ -46,10 +46,13 @@ public class ChatHubTests(ApiFactory factory) : IClassFixture<ApiFactory>, IAsyn
                 o.AccessTokenProvider = () => Task.FromResult<string?>(token);
             })
             .Build();
+        var typing = Channel.CreateUnbounded<string>();
         hub.On<MessageDto>("ReceiveMessage", m => received.Writer.TryWrite(m));
+        hub.On<string>("UserTyping", u => typing.Writer.TryWrite("typing:" + u));
+        hub.On<string>("UserStoppedTyping", u => typing.Writer.TryWrite("stopped:" + u));
         _connections.Add(hub);
         await hub.StartAsync();
-        return new Client(hub, received, id, token, name);
+        return new Client(hub, received, typing, id, token, name);
     }
 
     private async Task<Client> NewClient(string name)
@@ -199,5 +202,48 @@ public class ChatHubTests(ApiFactory factory) : IClassFixture<ApiFactory>, IAsyn
 
         var history = await HttpFor(bToken).GetFromJsonAsync<MessageDto[]>($"/api/conversations/{a.Id}/messages");
         Assert.Equal("while you were away", history!.Single().Body);
+    }
+
+    private static async Task<string> NextTyping(Client c)
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        return await c.Typing.Reader.ReadAsync(cts.Token);
+    }
+
+    [Fact]
+    public async Task Typing_and_stop_typing_are_forwarded_to_the_recipient_only_with_the_callers_id()
+    {
+        var a = await NewClient("Alice");
+        var b = await NewClient("Bob");
+        var eve = await NewClient("Eve");
+        var a2 = await Connect(a.Id, a.Token, a.Name);
+
+        await a.Hub.InvokeAsync("Typing", b.Id);
+        Assert.Equal($"typing:{a.Id}", await NextTyping(b));
+        await a.Hub.InvokeAsync("StopTyping", b.Id);
+        Assert.Equal($"stopped:{a.Id}", await NextTyping(b));
+
+        await Task.Delay(300);
+        Assert.False(eve.Typing.Reader.TryRead(out _)); // a third user hears nothing
+        Assert.False(a.Typing.Reader.TryRead(out _));   // and neither does the sender's own tabs
+        Assert.False(a2.Typing.Reader.TryRead(out _));
+        Assert.False(b.Received.Reader.TryRead(out _)); // typing is never stored or sent as a message
+        Assert.Empty((await HttpFor(b.Token).GetFromJsonAsync<MessageDto[]>($"/api/conversations/{a.Id}/messages"))!);
+    }
+
+    [Fact]
+    public async Task Typing_to_self_or_nobody_is_ignored_without_breaking_the_connection()
+    {
+        var a = await NewClient("Alice");
+        var b = await NewClient("Bob");
+
+        await a.Hub.InvokeAsync("Typing", a.Id);
+        await a.Hub.InvokeAsync("Typing", "");
+        await a.Hub.InvokeAsync("StopTyping", "nobody");
+        await Task.Delay(300);
+        Assert.False(a.Typing.Reader.TryRead(out _));
+
+        await a.Hub.InvokeAsync("Typing", b.Id); // still works
+        Assert.Equal($"typing:{a.Id}", await NextTyping(b));
     }
 }

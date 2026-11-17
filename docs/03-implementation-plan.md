@@ -20,7 +20,7 @@ To update: tick the task checkboxes (`- [x]`) inside each phase. When all of a p
 | 3 | Contacts and history (REST only) | 2 d | ✅ Done | Contact list; a conversation shows stored messages |
 | 4 | UI layout and styling | 2 d | ✅ Done | Final look: sidebar, bubbles, composer, mobile view |
 | 5 | SignalR: live messaging | 3 d | ✅ Done | Two browsers, messages appear instantly |
-| 6 | Typing indicator | 1 d | ⬜ Not started | Animated dots while the other person types |
+| 6 | Typing indicator | 1 d | 🟡 In progress | Animated dots while the other person types |
 | 7 | Unread badges and read state | 2 d | ⬜ Not started | Badge shows 3, clears on open, syncs across tabs |
 | 8 | Azure deployment | 2 d | ⬜ Not started | Same demo on the Azure URLs |
 | 9 | Hardening and tests | 2.5 d | ⬜ Not started | E2E suite green, security checklist done |
@@ -87,13 +87,15 @@ To update: tick the task checkboxes (`- [x]`) inside each phase. When all of a p
 - [x] Integration test: two SignalR clients exchange a message, and a duplicate send is ignored.
 - [x] **Done when:** in two browsers (for example Chrome and Edge in private mode, logged in as A and B), messages appear instantly on both sides (US-04, US-05).
 
-## Phase 6 – Typing indicator (1 d) · ⬜ Not started
+## Phase 6 – Typing indicator (1 d) · 🟡 In progress
 
-- [ ] Hub methods `Typing` and `StopTyping`, and client events `UserTyping` and `UserStoppedTyping`.
-- [ ] Composer: throttle `Typing` to once every 2 s, and send `StopTyping` after 3 s idle, on send, on clear, or on conversation switch.
-- [ ] `TypingIndicatorComponent`: three animated dots inside a bubble, with a 5 s safety timeout and screen-reader text.
-- [ ] A small "typing…" label in the contact list row.
-- [ ] Angular unit test with fake timers.
+Waiting for manual check: in two browsers (A and B), confirm the dots appear within about 1 s of B typing, bounce smoothly, vanish on send / clear / 5 s silence, and that the contact row shows "typing…".
+
+- [x] Hub methods `Typing` and `StopTyping`, and client events `UserTyping` and `UserStoppedTyping`.
+- [x] Composer: throttle `Typing` to once every 2 s, and send `StopTyping` after 3 s idle, on send, on clear, or on conversation switch.
+- [x] `TypingIndicatorComponent`: three animated dots inside a bubble, with a 5 s safety timeout and screen-reader text.
+- [x] A small "typing…" label in the contact list row.
+- [x] Angular unit test with fake timers.
 - [ ] **Done when:** BR-07 timings are met (US-06).
 
 ## Phase 7 – Unread badges and read state (2 d) · ⬜ Not started

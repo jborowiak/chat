@@ -31,7 +31,11 @@
             <span class="avatar" [style.background]="colour(c.userId)">{{ initials(c.displayName) }}</span>
             <span class="contact-main">
               <span class="contact-name">{{ c.displayName }}</span>
-              <span class="contact-preview">{{ c.lastMessagePreview ?? 'No messages yet' }}</span>
+              @if (chat.isTyping(c.userId)) {
+                <span class="contact-preview typing-label">typing…</span>
+              } @else {
+                <span class="contact-preview">{{ c.lastMessagePreview ?? 'No messages yet' }}</span>
+              }
             </span>
             <span class="contact-meta">
               <span class="contact-time">{{ listTime(c.lastMessageAt) }}</span>
@@ -93,6 +97,9 @@
               <p class="hint">No messages yet. Say hello!</p>
             }
           }
+          @if (chat.isTyping(contact.userId)) {
+            <app-typing-indicator [name]="contact.displayName" />
+          }
         </div>
       </div>
 
@@ -111,7 +118,7 @@
               aria-label="Message"
               maxlength="2000"
               [(ngModel)]="draft"
-              (input)="grow()"
+              (input)="onInput()"
               (keydown.enter)="onEnter($event)"
             ></textarea>
             @if (draft.length >= 1800) {

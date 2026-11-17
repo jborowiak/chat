@@ -29,6 +29,9 @@ export class ChatHubService {
 
   /** Every ReceiveMessage pushed by the server (including echoes of our own sends). */
   readonly messageReceived = new Subject<Message>();
+  /** Ids of users who started / stopped typing to us. */
+  readonly userTyping = new Subject<string>();
+  readonly userStoppedTyping = new Subject<string>();
   /** Emits after the connection came back, so the app can resync with the database. */
   readonly reconnected = new Subject<void>();
 
@@ -71,6 +74,20 @@ export class ChatHubService {
     });
   }
 
+  /** Fire-and-forget typing hints. They are dropped silently when not connected, which is fine (they are ephemeral). */
+  sendTyping(recipientId: string): void {
+    this.fireAndForget('Typing', recipientId);
+  }
+
+  sendStopTyping(recipientId: string): void {
+    this.fireAndForget('StopTyping', recipientId);
+  }
+
+  private fireAndForget(method: string, recipientId: string): void {
+    if (!this.connection || this._state() !== 'connected') return;
+    this.connection.send(method, recipientId).catch(() => undefined);
+  }
+
   private build(): HubConnection {
     const conn = new HubConnectionBuilder()
       .withUrl(`${environment.apiBaseUrl}/hubs/chat`, {
@@ -82,6 +99,8 @@ export class ChatHubService {
       .build();
 
     conn.on('ReceiveMessage', (m: Message) => this.messageReceived.next(m));
+    conn.on('UserTyping', (id: string) => this.userTyping.next(id));
+    conn.on('UserStoppedTyping', (id: string) => this.userStoppedTyping.next(id));
     conn.onreconnecting(() => {
       if (this.connection === conn) this._state.set('reconnecting');
     });

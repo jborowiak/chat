@@ -37,6 +37,10 @@ interface Pending {
 const PAGE_SIZE = 50;
 const GAP_PAGE_SIZE = 100;
 const PREVIEW_LENGTH = 80;
+/** BR-07 / technical requirements section 6: sender throttle and idle stop, recipient safety timeout. */
+export const TYPING_THROTTLE_MS = 2000;
+export const TYPING_IDLE_MS = 3000;
+export const TYPING_SAFETY_MS = 5000;
 
 const byId = (a: Message, b: Message) => a.id - b.id;
 
@@ -67,6 +71,13 @@ export class ChatStateService {
   private readonly _hasMore = signal(false);
   private readonly _loading = signal(false);
   private readonly _error = signal<string | null>(null);
+  /** Users who are typing to us right now. */
+  private readonly _typing = signal<ReadonlySet<string>>(new Set());
+  private readonly typingSafetyTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Outgoing side: who we last told "typing" and when, plus the idle timer that sends StopTyping. */
+  private typingTo: string | null = null;
+  private typingSentAt = 0;
+  private typingIdleTimer: ReturnType<typeof setTimeout> | undefined;
   private lastSearch = '';
   private pendingSeq = 0;
 
@@ -78,6 +89,7 @@ export class ChatStateService {
     const pending = this._pending().filter((p) => p.recipientId === open).map((p) => p.message);
     return pending.length === 0 ? this._messages() : [...this._messages(), ...pending];
   });
+  readonly typing = this._typing.asReadonly();
   readonly hasMore = this._hasMore.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
@@ -93,6 +105,8 @@ export class ChatStateService {
     });
     this.hub.messageReceived.subscribe((m) => this.applyMessage(m));
     this.hub.reconnected.subscribe(() => void this.resync());
+    this.hub.userTyping.subscribe((id) => this.showTyping(id));
+    this.hub.userStoppedTyping.subscribe((id) => this.hideTyping(id));
   }
 
   async loadContacts(search = ''): Promise<void> {
@@ -108,6 +122,7 @@ export class ChatStateService {
   }
 
   async selectContact(userId: string): Promise<void> {
+    if (this.typingTo !== userId) this.stopTyping();
     this._selectedUserId.set(userId);
     this._messages.set([]);
     this._hasMore.set(false);
@@ -128,6 +143,7 @@ export class ChatStateService {
 
   /** Leaves the open conversation (mobile back button). */
   closeConversation(): void {
+    this.stopTyping();
     this._selectedUserId.set(null);
     this._messages.set([]);
     this._hasMore.set(false);
@@ -158,6 +174,7 @@ export class ChatStateService {
     const recipientId = this._selectedUserId();
     const text = body.trim();
     if (!recipientId || !text) return;
+    this.stopTyping();
     const clientMessageId = crypto.randomUUID();
     const message: LocalMessage = {
       id: --this.pendingSeq, // negative: never collides with a real id
@@ -178,7 +195,45 @@ export class ChatStateService {
     await this.transmit(clientMessageId);
   }
 
+  /**
+   * Called by the composer on every input event with the current text.
+   * Sends `Typing` at most once per 2 s, and `StopTyping` after 3 s without input or when the text is empty.
+   */
+  notifyTyping(draft: string): void {
+    const to = this._selectedUserId();
+    if (!to || !draft.trim()) {
+      this.stopTyping();
+      return;
+    }
+    if (this.typingTo !== null && this.typingTo !== to) this.stopTyping(); // never leave dots hanging for a previous recipient
+    const now = Date.now();
+    if (this.typingTo !== to || now - this.typingSentAt >= TYPING_THROTTLE_MS) {
+      this.typingTo = to;
+      this.typingSentAt = now;
+      this.hub.sendTyping(to);
+    }
+    clearTimeout(this.typingIdleTimer);
+    this.typingIdleTimer = setTimeout(() => this.stopTyping(), TYPING_IDLE_MS);
+  }
+
+  /** Tells the recipient we stopped (input cleared, message sent, idle, conversation switched). No-op if we weren't typing. */
+  stopTyping(): void {
+    clearTimeout(this.typingIdleTimer);
+    const to = this.typingTo;
+    this.typingTo = null;
+    this.typingSentAt = 0;
+    if (to) this.hub.sendStopTyping(to);
+  }
+
+  isTyping(userId: string): boolean {
+    return this._typing().has(userId);
+  }
+
   clear(): void {
+    this.stopTyping();
+    for (const t of this.typingSafetyTimers.values()) clearTimeout(t);
+    this.typingSafetyTimers.clear();
+    this._typing.set(new Set());
     this._contacts.set([]);
     this._selectedUserId.set(null);
     this._messages.set([]);
@@ -188,6 +243,8 @@ export class ChatStateService {
 
   /** After a reconnect: re-read contacts (unread counts) and fill the gap in the open conversation. */
   async resync(): Promise<void> {
+    // Typing events sent while we were disconnected are lost, so don't keep stale dots.
+    for (const id of [...this._typing()]) this.hideTyping(id);
     await this.loadContacts(this.lastSearch);
     const userId = this._selectedUserId();
     if (userId) await this.fillGap(userId);
@@ -235,7 +292,27 @@ export class ChatStateService {
     const alreadyKnown = this._messages().some((m) => m.id === msg.id);
     this.touchContact(otherId, msg, !isMine && !isOpen && !alreadyKnown);
     if (isOpen) this._messages.update((list) => mergeMessages(list, [msg]));
-    // Marking the open conversation as read and the typing indicator arrive in phases 6 and 7.
+    if (!isMine) this.hideTyping(otherId); // a message from them ends "is typing"
+    // Marking the open conversation as read arrives in phase 7.
+  }
+
+  /** Shows the dots for a user and (re)starts the 5 s safety timer that covers lost StopTyping events. */
+  private showTyping(userId: string): void {
+    clearTimeout(this.typingSafetyTimers.get(userId));
+    this.typingSafetyTimers.set(userId, setTimeout(() => this.hideTyping(userId), TYPING_SAFETY_MS));
+    if (!this._typing().has(userId)) this._typing.update((s) => new Set(s).add(userId));
+  }
+
+  private hideTyping(userId: string): void {
+    clearTimeout(this.typingSafetyTimers.get(userId));
+    this.typingSafetyTimers.delete(userId);
+    if (this._typing().has(userId)) {
+      this._typing.update((s) => {
+        const next = new Set(s);
+        next.delete(userId);
+        return next;
+      });
+    }
   }
 
   /** Updates a contact's preview and time, moves it to the top, and optionally counts one more unread. */

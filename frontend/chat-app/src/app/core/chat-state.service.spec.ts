@@ -5,7 +5,7 @@ import { signal } from '@angular/core';
 import { Subject } from 'rxjs';
 import { AuthService } from './auth.service';
 import { ChatHubService } from './chat-hub.service';
-import { ChatStateService, Contact, Message } from './chat-state.service';
+import { ChatStateService, Contact, Message, TYPING_IDLE_MS, TYPING_SAFETY_MS, TYPING_THROTTLE_MS } from './chat-state.service';
 
 const msg = (id: number): Message => ({
   id,
@@ -26,6 +26,10 @@ describe('ChatStateService', () => {
   let hub: {
     messageReceived: Subject<Message>;
     reconnected: Subject<void>;
+    userTyping: Subject<string>;
+    userStoppedTyping: Subject<string>;
+    sendTyping: ReturnType<typeof vi.fn>;
+    sendStopTyping: ReturnType<typeof vi.fn>;
     connected: ReturnType<typeof signal<boolean>>;
     reconnecting: ReturnType<typeof signal<boolean>>;
     start: ReturnType<typeof vi.fn>;
@@ -38,6 +42,10 @@ describe('ChatStateService', () => {
     hub = {
       messageReceived: new Subject<Message>(),
       reconnected: new Subject<void>(),
+      userTyping: new Subject<string>(),
+      userStoppedTyping: new Subject<string>(),
+      sendTyping: vi.fn(),
+      sendStopTyping: vi.fn(),
       connected: signal(true),
       reconnecting: signal(false),
       start: vi.fn(() => Promise.resolve()),
@@ -204,6 +212,149 @@ describe('ChatStateService', () => {
       ctrl.expectOne((r) => r.url.endsWith('/contacts')).flush([contact('bob'), contact('carol', { conversationId: 7, unreadCount: 2 })]);
       await vi.waitFor(() => ctrl.expectOne((r) => r.url.includes('/carol/messages') && r.params.get('afterId') === '10').flush([live(11, 'carol'), live(12, 'carol')]));
       await vi.waitFor(() => expect(chat.messages().map((m) => m.id)).toEqual([10, 11, 12]));
+    });
+  });
+
+  describe('typing indicator (BR-07)', () => {
+    async function open(userId: string) {
+      const p = chat.selectContact(userId);
+      ctrl.expectOne((r) => r.url.includes(`/${userId}/messages`)).flush([]);
+      await p;
+    }
+
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    describe('sending side', () => {
+      it('sends Typing on the first keystroke and at most once every 2 s afterwards', async () => {
+        await open('bob');
+        chat.notifyTyping('h');
+        chat.notifyTyping('he');
+        chat.notifyTyping('hel');
+        expect(hub.sendTyping).toHaveBeenCalledTimes(1);
+        expect(hub.sendTyping).toHaveBeenCalledWith('bob');
+
+        vi.advanceTimersByTime(TYPING_THROTTLE_MS - 1);
+        chat.notifyTyping('hell');
+        expect(hub.sendTyping).toHaveBeenCalledTimes(1);
+
+        vi.advanceTimersByTime(1);
+        chat.notifyTyping('hello');
+        expect(hub.sendTyping).toHaveBeenCalledTimes(2);
+      });
+
+      it('sends StopTyping after 3 s without keystrokes, and each keystroke restarts that wait', async () => {
+        await open('bob');
+        chat.notifyTyping('a');
+        vi.advanceTimersByTime(TYPING_IDLE_MS - 1);
+        chat.notifyTyping('ab');
+        vi.advanceTimersByTime(TYPING_IDLE_MS - 1);
+        expect(hub.sendStopTyping).not.toHaveBeenCalled();
+
+        vi.advanceTimersByTime(1);
+        expect(hub.sendStopTyping).toHaveBeenCalledTimes(1);
+        expect(hub.sendStopTyping).toHaveBeenCalledWith('bob');
+
+        vi.advanceTimersByTime(10_000);
+        expect(hub.sendStopTyping).toHaveBeenCalledTimes(1); // only once
+      });
+
+      it('sends Typing again right away when typing resumes after a stop', async () => {
+        await open('bob');
+        chat.notifyTyping('a');
+        vi.advanceTimersByTime(TYPING_IDLE_MS);
+        chat.notifyTyping('ab');
+        expect(hub.sendTyping).toHaveBeenCalledTimes(2);
+      });
+
+      it('sends StopTyping when the input is cleared (or only whitespace)', async () => {
+        await open('bob');
+        chat.notifyTyping('a');
+        chat.notifyTyping('  ');
+        expect(hub.sendStopTyping).toHaveBeenCalledWith('bob');
+        chat.notifyTyping(''); // nothing more to stop
+        expect(hub.sendStopTyping).toHaveBeenCalledTimes(1);
+      });
+
+      it('sends StopTyping on send, without waiting for the idle timer', async () => {
+        await open('bob');
+        hub.sendMessage.mockResolvedValue(msg(1));
+        chat.notifyTyping('hi');
+        void chat.send('hi');
+        expect(hub.sendStopTyping).toHaveBeenCalledWith('bob');
+        expect(hub.sendStopTyping).toHaveBeenCalledTimes(1);
+      });
+
+      it('sends StopTyping to the old contact when the conversation is switched or closed', async () => {
+        await open('bob');
+        chat.notifyTyping('hi');
+        const p = chat.selectContact('carol');
+        ctrl.expectOne((r) => r.url.includes('/carol/messages')).flush([]);
+        await p;
+        expect(hub.sendStopTyping).toHaveBeenCalledWith('bob');
+
+        chat.notifyTyping('yo');
+        chat.closeConversation();
+        expect(hub.sendStopTyping).toHaveBeenCalledWith('carol');
+      });
+
+      it('never sends anything when no conversation is open', () => {
+        chat.notifyTyping('x');
+        expect(hub.sendTyping).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('receiving side', () => {
+      it('shows the dots on UserTyping and hides them on UserStoppedTyping', () => {
+        hub.userTyping.next('bob');
+        expect(chat.isTyping('bob')).toBe(true);
+        expect(chat.isTyping('carol')).toBe(false);
+        hub.userStoppedTyping.next('bob');
+        expect(chat.isTyping('bob')).toBe(false);
+      });
+
+      it('hides the dots after the 5 s safety timeout', () => {
+        hub.userTyping.next('bob');
+        vi.advanceTimersByTime(TYPING_SAFETY_MS - 1);
+        expect(chat.isTyping('bob')).toBe(true);
+        vi.advanceTimersByTime(1);
+        expect(chat.isTyping('bob')).toBe(false);
+      });
+
+      it('restarts the safety timer on every UserTyping', () => {
+        hub.userTyping.next('bob');
+        vi.advanceTimersByTime(4000);
+        hub.userTyping.next('bob');
+        vi.advanceTimersByTime(4000);
+        expect(chat.isTyping('bob')).toBe(true);
+        vi.advanceTimersByTime(1000);
+        expect(chat.isTyping('bob')).toBe(false);
+      });
+
+      it('hides the dots when a message from that user arrives, but not for other users or own messages', async () => {
+        const pc = chat.loadContacts();
+        ctrl.expectOne((r) => r.url.endsWith('/contacts')).flush([
+          { userId: 'bob', displayName: 'bob', conversationId: 7, lastMessagePreview: null, lastMessageAt: null, unreadCount: 0, isOnline: false },
+        ]);
+        await pc;
+        const m = (senderId: string): Message => ({ ...msg(5), conversationId: 7, senderId });
+        hub.userTyping.next('bob');
+        hub.userTyping.next('carol');
+
+        hub.messageReceived.next(m('me')); // an echo of my own message says nothing about Bob
+        expect(chat.isTyping('bob')).toBe(true);
+
+        hub.messageReceived.next(m('bob'));
+        expect(chat.isTyping('bob')).toBe(false);
+        expect(chat.isTyping('carol')).toBe(true);
+      });
+
+      it('forgets all typing state on logout/clear', () => {
+        hub.userTyping.next('bob');
+        chat.clear();
+        expect(chat.isTyping('bob')).toBe(false);
+        vi.advanceTimersByTime(TYPING_SAFETY_MS); // no timer fires afterwards
+      });
     });
   });
 });

@@ -130,7 +130,7 @@ Contacts are sorted by `lastMessageAt` descending, then by `displayName`.
 | Method | Arguments | Server behaviour |
 | --- | --- | --- |
 | `SendMessage` | `recipientId: string, clientMessageId: Guid, body: string` | 1) Validate: recipient exists and isn't the caller; trimmed length is 1–2,000. 2) Get or create the conversation and its 2 member rows. 3) If `(sender, clientMessageId)` already exists, return the existing message (nothing is pushed again). 4) Insert the message, update `LastMessageAt`, and move the **sender's** `LastReadMessageId` to this message. 5) Push `ReceiveMessage(dto)` to `Clients.User(recipientId)` and `Clients.User(senderId)` (the sender's other tabs). 6) Return `MessageDto` as the acknowledgement. Invalid input throws a `HubException` with a short message. |
-| `Typing` | `recipientId: string` | Forward `UserTyping(senderId)` to the recipient. Not stored. |
+| `Typing` | `recipientId: string` | Forward `UserTyping(senderId)` to the recipient. Not stored. A self, empty or unknown recipient is silently ignored. |
 | `StopTyping` | `recipientId: string` | Forward `UserStoppedTyping(senderId)` to the recipient. |
 | `MarkRead` | `conversationId: int, lastReadMessageId: long` | Check that the caller is a member. Set `LastReadMessageId = max(current, value)`. Push `ConversationRead(conversationId, lastReadMessageId)` to `Clients.User(caller)` so the badges in the caller's other tabs clear (BR-10). |
 

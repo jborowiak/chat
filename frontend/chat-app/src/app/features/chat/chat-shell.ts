@@ -1,12 +1,13 @@
-import { Component, ElementRef, OnInit, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, OnInit, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/auth.service';
 import { ChatStateService } from '../../core/chat-state.service';
+import { TypingIndicator } from './typing-indicator';
 import { avatarColour, buildThread, clock, initials, listTime } from './chat-view';
 
 @Component({
   selector: 'app-chat-shell',
-  imports: [FormsModule],
+  imports: [FormsModule, TypingIndicator],
   templateUrl: './chat-shell.html',
   styleUrl: './chat-shell.scss',
 })
@@ -31,6 +32,16 @@ export class ChatShell implements OnInit {
     // Jump to the bottom when the newest message changes: always when a conversation is opened or the
     // message is mine, otherwise only if the user is already near the bottom (so reading history isn't interrupted).
     // Prepending older messages leaves the newest one alone, so it doesn't scroll.
+    // When the dots appear, keep the view pinned to the bottom if the user was already near it.
+    effect(() => {
+      const open = this.chat.selectedUserId();
+      const shown = open !== null && this.chat.isTyping(open);
+      const el = untracked(() => this.scroller()?.nativeElement);
+      if (!shown || !el) return;
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+      if (nearBottom) setTimeout(() => (el.scrollTop = el.scrollHeight));
+    });
+
     effect(() => {
       const msgs = this.chat.messages();
       const conversation = this.chat.selectedUserId();
@@ -88,6 +99,12 @@ export class ChatShell implements OnInit {
       event.preventDefault();
       next.focus();
     }
+  }
+
+  /** Grows the box and tells the other person we're typing (the state service throttles and times it out). */
+  protected onInput(): void {
+    this.grow();
+    this.chat.notifyTyping(this.draft);
   }
 
   protected onEnter(event: Event): void {

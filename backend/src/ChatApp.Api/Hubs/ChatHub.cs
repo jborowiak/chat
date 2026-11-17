@@ -4,10 +4,12 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace ChatApp.Api.Hubs;
 
-/// <summary>Server-to-client events. Phases 6, 7 and 10 add typing, read and presence events.</summary>
+/// <summary>Server-to-client events. Phases 7 and 10 add read and presence events.</summary>
 public interface IChatClient
 {
     Task ReceiveMessage(MessageDto message);
+    Task UserTyping(string userId);
+    Task UserStoppedTyping(string userId);
 }
 
 [Authorize]
@@ -35,5 +37,19 @@ public class ChatHub(MessageService messages) : Hub<IChatClient>
             await Clients.Users(recipientId, senderId).ReceiveMessage(result.Message!);
         }
         return result.Message!;
+    }
+
+    /// <summary>Tells the recipient that the caller is typing. Not stored; the caller id comes from the token.</summary>
+    public Task Typing(string recipientId) =>
+        IsValidTarget(recipientId, out var senderId) ? Clients.User(recipientId).UserTyping(senderId) : Task.CompletedTask;
+
+    public Task StopTyping(string recipientId) =>
+        IsValidTarget(recipientId, out var senderId) ? Clients.User(recipientId).UserStoppedTyping(senderId) : Task.CompletedTask;
+
+    // Ephemeral hints are silently dropped when malformed, so a bad call never breaks the connection.
+    private bool IsValidTarget(string? recipientId, out string senderId)
+    {
+        senderId = Context.UserIdentifier ?? "";
+        return senderId.Length > 0 && !string.IsNullOrWhiteSpace(recipientId) && recipientId != senderId;
     }
 }
