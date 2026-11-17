@@ -75,6 +75,13 @@ export class ChatStateService {
     }
   }
 
+  /** Leaves the open conversation (mobile back button). */
+  closeConversation(): void {
+    this._selectedUserId.set(null);
+    this._messages.set([]);
+    this._hasMore.set(false);
+  }
+
   /** Loads the page of messages older than the oldest one shown. Returns how many were added. */
   async loadOlder(): Promise<number> {
     const userId = this._selectedUserId();

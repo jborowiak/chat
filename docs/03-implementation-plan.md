@@ -6,7 +6,7 @@ The plan assumes one developer. Estimates are in working days, about **4 weeks**
 
 ## Progress
 
-**Overall: 4 / 11 phases done** · Last updated: 16 Nov 2026
+**Overall: 4 / 11 phases done** · Last updated: 17 Nov 2026
 
 Status legend: ⬜ Not started · 🟡 In progress · ✅ Done · ⏸️ Blocked / postponed
 
@@ -18,7 +18,7 @@ To update: tick the task checkboxes (`- [x]`) inside each phase. When all of a p
 | 1 | Database and data model | 1.5 d | ✅ Done | Migrations create the schema locally |
 | 2 | Authentication | 2 d | ✅ Done | Register, log in, log out from the Angular UI |
 | 3 | Contacts and history (REST only) | 2 d | ✅ Done | Contact list; a conversation shows stored messages |
-| 4 | UI layout and styling | 2 d | ⬜ Not started | Final look: sidebar, bubbles, composer, mobile view |
+| 4 | UI layout and styling | 2 d | 🟡 In progress | Final look: sidebar, bubbles, composer, mobile view |
 | 5 | SignalR: live messaging | 3 d | ⬜ Not started | Two browsers, messages appear instantly |
 | 6 | Typing indicator | 1 d | ⬜ Not started | Animated dots while the other person types |
 | 7 | Unread badges and read state | 2 d | ⬜ Not started | Badge shows 3, clears on open, syncs across tabs |
@@ -66,13 +66,15 @@ To update: tick the task checkboxes (`- [x]`) inside each phase. When all of a p
 - [x] Backend unit tests: validation, PairKey, unread count.
 - [x] **Done when:** messages stored in the database show up in the right conversation, in order (US-03, US-07, US-11).
 
-## Phase 4 – UI layout and styling (2 d) · ⬜ Not started
+## Phase 4 – UI layout and styling (2 d) · 🟡 In progress
 
-- [ ] Design tokens and base styles from [04-ui-design.md](04-ui-design.md).
-- [ ] Two-pane layout, plus contact items with avatar initials and badges.
-- [ ] Message bubbles with grouping and day separators.
-- [ ] Auto-growing composer and empty states.
-- [ ] Responsive behaviour: below 768 px, show only one pane at a time, with a back button in the conversation header.
+Waiting for manual check: compare the UI with 04-ui-design.md on desktop and at phone width (< 768 px: one pane, back button, Esc).
+
+- [x] Design tokens and base styles from [04-ui-design.md](04-ui-design.md).
+- [x] Two-pane layout, plus contact items with avatar initials and badges.
+- [x] Message bubbles with grouping and day separators.
+- [x] Auto-growing composer and empty states.
+- [x] Responsive behaviour: below 768 px, show only one pane at a time, with a back button in the conversation header.
 - [ ] **Done when:** the UI matches the design on desktop and on a phone-width screen.
 
 ## Phase 5 – SignalR live messaging (3 d) · ⬜ Not started
