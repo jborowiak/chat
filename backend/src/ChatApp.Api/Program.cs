@@ -2,6 +2,7 @@ using ChatApp.Api.Auth;
 using ChatApp.Api.Chat;
 using ChatApp.Api.Data;
 using ChatApp.Api.Data.Entities;
+using ChatApp.Api.Hubs;
 using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -25,6 +26,8 @@ builder.Services.AddIdentityApiEndpoints<AppUser>(options =>
     .AddEntityFrameworkStores<ChatDbContext>();
 
 builder.Services.AddAuthorization();
+builder.Services.AddSignalR(o => o.MaximumReceiveMessageSize = 32 * 1024); // 32 KB cap (technical requirements section 8)
+builder.Services.AddScoped<MessageService>();
 
 // Browsers can't send headers on WebSocket requests, so SignalR sends the token as ?access_token=.
 builder.Services.Configure<BearerTokenOptions>(IdentityConstants.BearerScheme, options =>
@@ -59,6 +62,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }));
 
 app.MapAuth();
 app.MapChat();
+app.MapHub<ChatHub>("/hubs/chat");
 
 app.Run();
 

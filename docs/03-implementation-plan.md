@@ -6,7 +6,7 @@ The plan assumes one developer. Estimates are in working days, about **4 weeks**
 
 ## Progress
 
-**Overall: 4 / 11 phases done** · Last updated: 17 Nov 2026
+**Overall: 6 / 11 phases done** · Last updated: 17 Nov 2026
 
 Status legend: ⬜ Not started · 🟡 In progress · ✅ Done · ⏸️ Blocked / postponed
 
@@ -18,8 +18,8 @@ To update: tick the task checkboxes (`- [x]`) inside each phase. When all of a p
 | 1 | Database and data model | 1.5 d | ✅ Done | Migrations create the schema locally |
 | 2 | Authentication | 2 d | ✅ Done | Register, log in, log out from the Angular UI |
 | 3 | Contacts and history (REST only) | 2 d | ✅ Done | Contact list; a conversation shows stored messages |
-| 4 | UI layout and styling | 2 d | 🟡 In progress | Final look: sidebar, bubbles, composer, mobile view |
-| 5 | SignalR: live messaging | 3 d | ⬜ Not started | Two browsers, messages appear instantly |
+| 4 | UI layout and styling | 2 d | ✅ Done | Final look: sidebar, bubbles, composer, mobile view |
+| 5 | SignalR: live messaging | 3 d | ✅ Done | Two browsers, messages appear instantly |
 | 6 | Typing indicator | 1 d | ⬜ Not started | Animated dots while the other person types |
 | 7 | Unread badges and read state | 2 d | ⬜ Not started | Badge shows 3, clears on open, syncs across tabs |
 | 8 | Azure deployment | 2 d | ⬜ Not started | Same demo on the Azure URLs |
@@ -66,28 +66,26 @@ To update: tick the task checkboxes (`- [x]`) inside each phase. When all of a p
 - [x] Backend unit tests: validation, PairKey, unread count.
 - [x] **Done when:** messages stored in the database show up in the right conversation, in order (US-03, US-07, US-11).
 
-## Phase 4 – UI layout and styling (2 d) · 🟡 In progress
-
-Waiting for manual check: compare the UI with 04-ui-design.md on desktop and at phone width (< 768 px: one pane, back button, Esc).
+## Phase 4 – UI layout and styling (2 d) · ✅ Done
 
 - [x] Design tokens and base styles from [04-ui-design.md](04-ui-design.md).
 - [x] Two-pane layout, plus contact items with avatar initials and badges.
 - [x] Message bubbles with grouping and day separators.
 - [x] Auto-growing composer and empty states.
 - [x] Responsive behaviour: below 768 px, show only one pane at a time, with a back button in the conversation header.
-- [ ] **Done when:** the UI matches the design on desktop and on a phone-width screen.
+- [x] **Done when:** the UI matches the design on desktop and on a phone-width screen.
 
-## Phase 5 – SignalR live messaging (3 d) · ⬜ Not started
+## Phase 5 – SignalR live messaging (3 d) · ✅ Done
 
-- [ ] Backend: `AddSignalR()` and `MapHub<ChatHub>("/hubs/chat")`, with `ChatHub : Hub<IChatClient>` and `[Authorize]`.
-- [ ] Backend: `SendMessage` follows the order: validate → save → push to recipient and sender → return the acknowledgement.
-- [ ] Backend: idempotency via `ClientMessageId`.
-- [ ] Backend: remove the temporary POST.
-- [ ] Frontend: `ChatHubService` wraps `HubConnection`, with `withAutomaticReconnect`, `accessTokenFactory`, and start/stop tied to login and logout.
-- [ ] Frontend: optimistic sending with "sending", "sent" and "failed + Retry" states.
-- [ ] Frontend: a "Reconnecting…" banner, and contacts resync plus gap-fill after a reconnect.
-- [ ] Integration test: two SignalR clients exchange a message, and a duplicate send is ignored.
-- [ ] **Done when:** in two browsers (for example Chrome and Edge in private mode, logged in as A and B), messages appear instantly on both sides (US-04, US-05).
+- [x] Backend: `AddSignalR()` and `MapHub<ChatHub>("/hubs/chat")`, with `ChatHub : Hub<IChatClient>` and `[Authorize]`.
+- [x] Backend: `SendMessage` follows the order: validate → save → push to recipient and sender → return the acknowledgement.
+- [x] Backend: idempotency via `ClientMessageId`.
+- [x] Backend: remove the temporary POST.
+- [x] Frontend: `ChatHubService` wraps `HubConnection`, with `withAutomaticReconnect`, `accessTokenFactory`, and start/stop tied to login and logout.
+- [x] Frontend: optimistic sending with "sending", "sent" and "failed + Retry" states.
+- [x] Frontend: a "Reconnecting…" banner, and contacts resync plus gap-fill after a reconnect.
+- [x] Integration test: two SignalR clients exchange a message, and a duplicate send is ignored.
+- [x] **Done when:** in two browsers (for example Chrome and Edge in private mode, logged in as A and B), messages appear instantly on both sides (US-04, US-05).
 
 ## Phase 6 – Typing indicator (1 d) · ⬜ Not started
 

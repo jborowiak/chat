@@ -1,4 +1,4 @@
-import { Message } from '../../core/chat-state.service';
+import { LocalMessage as Message } from '../../core/chat-state.service';
 
 const AVATAR_COLOURS = ['#FDE2E4', '#E2ECE9', '#DFE7FD', '#FFF1C1', '#E4D9FF', '#D8F0F5'];
 const GROUP_WINDOW_MS = 2 * 60 * 1000;

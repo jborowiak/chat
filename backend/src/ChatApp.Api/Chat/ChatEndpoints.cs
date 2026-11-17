@@ -12,8 +12,6 @@ public static class ChatEndpoints
         var api = app.MapGroup("/api").RequireAuthorization();
         api.MapGet("/contacts", GetContacts);
         api.MapGet("/conversations/{otherUserId}/messages", GetMessages);
-        // TEMPORARY: removed in phase 5 when sending moves to the SignalR hub.
-        api.MapPost("/conversations/{otherUserId}/messages", PostMessage);
     }
 
     private static string? UserId(ClaimsPrincipal p) => p.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -47,7 +45,7 @@ public static class ChatEndpoints
         var result = people
             .Select(p => byOther.TryGetValue(p.Id, out var c)
                 ? new ContactDto(p.Id, p.DisplayName, c.ConversationId,
-                    c.LastBody is null ? null : ChatRules.Preview(c.LastBody), c.LastMessageAt is null ? null : AsUtc(c.LastMessageAt.Value), c.Unread, false)
+                    c.LastBody is null ? null : ChatRules.Preview(c.LastBody), c.LastMessageAt is null ? null : MessageDto.AsUtc(c.LastMessageAt.Value), c.Unread, false)
                 : new ContactDto(p.Id, p.DisplayName, null, null, null, 0, false))
             .OrderByDescending(c => c.LastMessageAt.HasValue)
             .ThenByDescending(c => c.LastMessageAt)
@@ -86,41 +84,5 @@ public static class ChatEndpoints
         return Results.Ok(rows.Select(ToDto));
     }
 
-    private static async Task<IResult> PostMessage(
-        string otherUserId, SendMessageRequest request, ClaimsPrincipal principal, ChatDbContext db, CancellationToken ct)
-    {
-        var me = UserId(principal);
-        if (me is null) return Results.Unauthorized();
-        if (otherUserId == me) return Results.BadRequest(new { error = "You can't message yourself." });
-        if (!await db.Users.AnyAsync(u => u.Id == otherUserId, ct)) return Results.NotFound();
-
-        var body = ChatRules.NormalizeBody(request.Body);
-        if (body is null) return Results.BadRequest(new { error = $"Message must be 1 to {ChatRules.MaxBodyLength} characters." });
-
-        var clientId = request.ClientMessageId ?? Guid.NewGuid();
-        var existing = await db.Messages.FirstOrDefaultAsync(m => m.SenderId == me && m.ClientMessageId == clientId, ct);
-        if (existing is not null) return Results.Ok(ToDto(existing));
-
-        var pairKey = ChatRules.PairKey(me, otherUserId);
-        var conversation = await db.Conversations.FirstOrDefaultAsync(c => c.PairKey == pairKey, ct);
-        if (conversation is null)
-        {
-            conversation = new Conversation { PairKey = pairKey };
-            conversation.Members.Add(new ConversationMember { UserId = me });
-            conversation.Members.Add(new ConversationMember { UserId = otherUserId });
-            db.Conversations.Add(conversation);
-        }
-
-        var now = DateTime.UtcNow;
-        var message = new Message { Conversation = conversation, SenderId = me, Body = body, ClientMessageId = clientId, SentAt = now };
-        conversation.LastMessageAt = now;
-        db.Messages.Add(message);
-        await db.SaveChangesAsync(ct);
-        return Results.Ok(ToDto(message));
-    }
-
-    /// <summary>SQL Server returns Kind=Unspecified; mark as UTC so JSON gets a trailing Z.</summary>
-    private static DateTime AsUtc(DateTime d) => DateTime.SpecifyKind(d, DateTimeKind.Utc);
-
-    private static MessageDto ToDto(Message m) => new(m.Id, m.ConversationId, m.SenderId, m.Body, AsUtc(m.SentAt), m.ClientMessageId);
+    private static MessageDto ToDto(Message m) => MessageDto.From(m);
 }

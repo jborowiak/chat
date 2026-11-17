@@ -46,7 +46,16 @@
 .day-sep { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-4) 0 var(--space-3); color: var(--text-muted); font-size: var(--fs-xs); }
 .day-sep::before, .day-sep::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
-.row { display: flex; margin-top: 12px; }
+.row { display: flex; margin-top: 12px; flex-wrap: wrap; }
+.row.mine { align-items: flex-end; }
+.bubble.pending { opacity: .6; }
+.clock-icon { vertical-align: -1px; margin-right: 2px; }
+.not-sent { flex-basis: 100%; text-align: right; color: var(--danger); font-size: var(--fs-xs); margin-top: 2px; }
+.retry { border: 0; background: none; padding: 0; color: var(--danger); font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
+.retry:disabled { opacity: .5; cursor: default; }
+
+.banner { flex: none; height: 28px; line-height: 28px; text-align: center; background: var(--warning-bg); color: #92400E; font-size: var(--fs-sm); animation: slide-down .2s ease-out; }
+@keyframes slide-down { from { transform: translateY(-100%); opacity: 0; } to { transform: none; opacity: 1; } }
 .row.grouped { margin-top: 2px; }
 .row.mine { justify-content: flex-end; }
 .bubble { max-width: 70%; padding: 8px 12px; border-radius: var(--radius-bubble); white-space: pre-wrap; overflow-wrap: anywhere; }

@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using ChatApp.Api.Chat;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ChatApp.Api.Tests;
 
@@ -23,8 +25,13 @@ public class ChatEndpointTests(ApiFactory factory) : IClassFixture<ApiFactory>
         return new TestUser(c, me.GetProperty("id").GetString()!, name);
     }
 
-    private static Task<HttpResponseMessage> Send(TestUser from, TestUser to, string body, Guid? id = null) =>
-        from.Client.PostAsJsonAsync($"/api/conversations/{to.Id}/messages", new { body, clientMessageId = id });
+    /// <summary>Seeds a stored message through the same service the hub uses (sending itself is tested in ChatHubTests).</summary>
+    private async Task Send(TestUser from, TestUser to, string body)
+    {
+        using var scope = factory.Services.CreateScope();
+        var result = await scope.ServiceProvider.GetRequiredService<MessageService>().SendAsync(from.Id, to.Id, Guid.NewGuid(), body);
+        Assert.True(result.Ok);
+    }
 
     private static Task<JsonElement[]> History(TestUser who, TestUser other, string query = "") =>
         who.Client.GetFromJsonAsync<JsonElement[]>($"/api/conversations/{other.Id}/messages{query}")!;
@@ -70,7 +77,7 @@ public class ChatEndpointTests(ApiFactory factory) : IClassFixture<ApiFactory>
     {
         var a = await NewUser("Alice");
         var b = await NewUser("Bob");
-        for (var i = 1; i <= 5; i++) (await Send(a, b, $"m{i}")).EnsureSuccessStatusCode();
+        for (var i = 1; i <= 5; i++) await Send(a, b, $"m{i}");
 
         var page1 = await History(b, a, "?limit=2");
         Assert.Equal(["m5", "m4"], page1.Select(m => m.GetProperty("body").GetString()));
@@ -108,32 +115,19 @@ public class ChatEndpointTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task Send_validates_body_self_and_unknown_user()
+    public async Task History_rejects_self_and_unknown_user()
     {
         var a = await NewUser("Alice");
-        var b = await NewUser("Bob");
-
-        Assert.Equal(HttpStatusCode.BadRequest, (await Send(a, b, "   ")).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await Send(a, b, new string('x', 2001))).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await Send(a, b, new string('x', 2000))).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await Send(a, a, "hi")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound,
-            (await a.Client.PostAsJsonAsync("/api/conversations/nobody/messages", new { body = "hi" })).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await a.Client.GetAsync($"/api/conversations/{a.Id}/messages")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await a.Client.GetAsync("/api/conversations/nobody/messages")).StatusCode);
     }
 
     [Fact]
-    public async Task Send_with_same_clientMessageId_is_idempotent_and_both_directions_share_one_conversation()
+    public async Task Temporary_POST_send_endpoint_is_gone()
     {
         var a = await NewUser("Alice");
         var b = await NewUser("Bob");
-        var id = Guid.NewGuid();
-        await Send(a, b, "once", id);
-        await Send(a, b, "once", id);
-        await Send(b, a, "reply");
-
-        var msgs = await History(a, b);
-        Assert.Equal(2, msgs.Length);
-        Assert.Single(msgs.Select(m => m.GetProperty("conversationId").GetInt32()).Distinct());
+        var r = await a.Client.PostAsJsonAsync($"/api/conversations/{b.Id}/messages", new { body = "hi" });
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, r.StatusCode);
     }
 }

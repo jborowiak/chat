@@ -5,6 +5,10 @@
   <button type="button" class="text-btn" (click)="logout()">Log out</button>
 </header>
 
+@if (chat.reconnecting()) {
+  <div class="banner" role="status">Reconnecting…</div>
+}
+
 <div class="layout" [class.has-chat]="chat.selectedContact()" (keydown.escape)="onEscape()">
   <aside class="sidebar">
     <div class="search">
@@ -70,10 +74,18 @@
               <div class="day-sep"><span>{{ item.label }}</span></div>
             } @else {
               <div class="row" [class.mine]="item.mine" [class.grouped]="item.grouped">
-                <div class="bubble" [class.mine]="item.mine" [class.theirs]="!item.mine" [class.tail]="item.tail">
+                <div class="bubble" [class.mine]="item.mine" [class.theirs]="!item.mine" [class.tail]="item.tail" [class.pending]="item.message.status === 'sending'" [class.failed]="item.message.status === 'failed'">
                   <span class="body">{{ item.message.body }}</span>
-                  <time class="time" [attr.datetime]="item.message.sentAt">{{ clock(item.message.sentAt) }}</time>
+                  <time class="time" [attr.datetime]="item.message.sentAt">
+                    @if (item.message.status === 'sending') {
+                      <svg class="clock-icon" viewBox="0 0 12 12" width="10" height="10" aria-label="Sending"><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1.2" /><path d="M6 3v3l2 1.2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" /></svg>
+                    }
+                    {{ clock(item.message.sentAt) }}
+                  </time>
                 </div>
+                @if (item.message.status === 'failed') {
+                  <span class="not-sent" role="alert">Not sent · <button type="button" class="retry" (click)="chat.retry(item.message.clientMessageId)" [disabled]="!chat.connected()">Retry</button></span>
+                }
               </div>
             }
           } @empty {
@@ -106,7 +118,7 @@
               <span class="counter">{{ draft.length.toLocaleString('en-US') }} / 2,000</span>
             }
           </div>
-          <button type="submit" class="send" aria-label="Send" [disabled]="!draft.trim()">
+          <button type="submit" class="send" aria-label="Send" [disabled]="!draft.trim() || !chat.connected()">
             <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
               <path d="M3 10l14-6-5 13-2-5.5L3 10z" fill="currentColor" />
             </svg>

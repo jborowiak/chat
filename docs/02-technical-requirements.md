@@ -109,7 +109,6 @@ Base path: `/api`. Every endpoint except register/login needs `Authorization: Be
 | `GET /api/contacts?search=` | All other users, with conversation summary | `ContactDto[]` (below) |
 | `GET /api/conversations/{otherUserId}/messages?beforeId=&limit=50` | Message history, newest first, paged by `beforeId` | `MessageDto[]` |
 | `GET /api/conversations/{otherUserId}/messages?afterId=` | Gap-fill after a reconnect (oldest first, so it can be appended in order) | `MessageDto[]` |
-| `POST /api/conversations/{otherUserId}/messages` | **Temporary (phases 3-4):** send `{ body, clientMessageId? }` before SignalR exists. Removed in phase 5. | `MessageDto` |
 | `GET /health` | Health probe for App Service | 200 |
 
 ```ts
@@ -130,7 +129,7 @@ Contacts are sorted by `lastMessageAt` descending, then by `displayName`.
 
 | Method | Arguments | Server behaviour |
 | --- | --- | --- |
-| `SendMessage` | `recipientId: string, clientMessageId: Guid, body: string` | 1) Validate: recipient exists and isn't the caller; trimmed length is 1–2,000. 2) Get or create the conversation and its 2 member rows. 3) If `(sender, clientMessageId)` already exists, return the existing message. 4) Insert the message, update `LastMessageAt`, and move the **sender's** `LastReadMessageId` to this message. 5) Push `ReceiveMessage(dto)` to `Clients.User(recipientId)` and `Clients.User(senderId)` (the sender's other tabs). 6) Return `MessageDto` as the acknowledgement. |
+| `SendMessage` | `recipientId: string, clientMessageId: Guid, body: string` | 1) Validate: recipient exists and isn't the caller; trimmed length is 1–2,000. 2) Get or create the conversation and its 2 member rows. 3) If `(sender, clientMessageId)` already exists, return the existing message (nothing is pushed again). 4) Insert the message, update `LastMessageAt`, and move the **sender's** `LastReadMessageId` to this message. 5) Push `ReceiveMessage(dto)` to `Clients.User(recipientId)` and `Clients.User(senderId)` (the sender's other tabs). 6) Return `MessageDto` as the acknowledgement. Invalid input throws a `HubException` with a short message. |
 | `Typing` | `recipientId: string` | Forward `UserTyping(senderId)` to the recipient. Not stored. |
 | `StopTyping` | `recipientId: string` | Forward `UserStoppedTyping(senderId)` to the recipient. |
 | `MarkRead` | `conversationId: int, lastReadMessageId: long` | Check that the caller is a member. Set `LastReadMessageId = max(current, value)`. Push `ConversationRead(conversationId, lastReadMessageId)` to `Clients.User(caller)` so the badges in the caller's other tabs clear (BR-10). |

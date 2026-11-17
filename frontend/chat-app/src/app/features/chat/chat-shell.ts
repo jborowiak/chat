@@ -25,18 +25,26 @@ export class ChatShell implements OnInit {
   private readonly scroller = viewChild<ElementRef<HTMLDivElement>>('scroller');
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
   private lastNewestId: number | undefined;
+  private lastConversation: string | null = null;
 
   constructor() {
-    // Jump to the bottom when the newest message changes (conversation opened, message sent);
-    // prepending older messages leaves the newest one alone, so it doesn't scroll.
+    // Jump to the bottom when the newest message changes: always when a conversation is opened or the
+    // message is mine, otherwise only if the user is already near the bottom (so reading history isn't interrupted).
+    // Prepending older messages leaves the newest one alone, so it doesn't scroll.
     effect(() => {
       const msgs = this.chat.messages();
+      const conversation = this.chat.selectedUserId();
       const el = this.scroller()?.nativeElement;
       if (!el || msgs.length === 0) return;
-      const newest = msgs[msgs.length - 1].id;
-      if (newest === this.lastNewestId) return;
-      this.lastNewestId = newest;
-      queueMicrotask(() => (el.scrollTop = el.scrollHeight));
+      const newest = msgs[msgs.length - 1];
+      const switched = conversation !== this.lastConversation;
+      if (!switched && newest.id === this.lastNewestId) return;
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+      const mine = newest.senderId === this.auth.user()?.id;
+      this.lastConversation = conversation;
+      this.lastNewestId = newest.id;
+      // A pending message is replaced by its saved copy with a new id; that must not yank the view either.
+      if (switched || mine || nearBottom) queueMicrotask(() => (el.scrollTop = el.scrollHeight));
     });
   }
 
@@ -99,7 +107,7 @@ export class ChatShell implements OnInit {
   protected async send(event?: Event): Promise<void> {
     event?.preventDefault();
     const text = this.draft;
-    if (!text.trim()) return;
+    if (!text.trim() || !this.chat.connected()) return; // sending is disabled while (re)connecting
     this.draft = '';
     queueMicrotask(() => this.grow());
     await this.chat.send(text);
