@@ -108,7 +108,8 @@ Base path: `/api`. Every endpoint except register/login needs `Authorization: Be
 | `GET /api/me` | Current user profile | `{ id, displayName, email }` |
 | `GET /api/contacts?search=` | All other users, with conversation summary | `ContactDto[]` (below) |
 | `GET /api/conversations/{otherUserId}/messages?beforeId=&limit=50` | Message history, newest first, paged by `beforeId` | `MessageDto[]` |
-| `GET /api/conversations/{otherUserId}/messages?afterId=` | Gap-fill after a reconnect | `MessageDto[]` |
+| `GET /api/conversations/{otherUserId}/messages?afterId=` | Gap-fill after a reconnect (oldest first, so it can be appended in order) | `MessageDto[]` |
+| `POST /api/conversations/{otherUserId}/messages` | **Temporary (phases 3-4):** send `{ body, clientMessageId? }` before SignalR exists. Removed in phase 5. | `MessageDto` |
 | `GET /health` | Health probe for App Service | 200 |
 
 ```ts

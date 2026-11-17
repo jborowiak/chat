@@ -1,4 +1,5 @@
 using ChatApp.Api.Auth;
+using ChatApp.Api.Chat;
 using ChatApp.Api.Data;
 using ChatApp.Api.Data.Entities;
 using Microsoft.AspNetCore.Authentication.BearerToken;
@@ -57,6 +58,7 @@ app.UseAuthorization();
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }));
 
 app.MapAuth();
+app.MapChat();
 
 app.Run();
 

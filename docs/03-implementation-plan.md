@@ -6,7 +6,7 @@ The plan assumes one developer. Estimates are in working days, about **4 weeks**
 
 ## Progress
 
-**Overall: 3 / 11 phases done** · Last updated: 16 Nov 2026
+**Overall: 4 / 11 phases done** · Last updated: 16 Nov 2026
 
 Status legend: ⬜ Not started · 🟡 In progress · ✅ Done · ⏸️ Blocked / postponed
 
@@ -17,7 +17,7 @@ To update: tick the task checkboxes (`- [x]`) inside each phase. When all of a p
 | 0 | Repo and project skeletons | 1 d | ✅ Done | API and Angular app both run locally |
 | 1 | Database and data model | 1.5 d | ✅ Done | Migrations create the schema locally |
 | 2 | Authentication | 2 d | ✅ Done | Register, log in, log out from the Angular UI |
-| 3 | Contacts and history (REST only) | 2 d | ⬜ Not started | Contact list; a conversation shows stored messages |
+| 3 | Contacts and history (REST only) | 2 d | ✅ Done | Contact list; a conversation shows stored messages |
 | 4 | UI layout and styling | 2 d | ⬜ Not started | Final look: sidebar, bubbles, composer, mobile view |
 | 5 | SignalR: live messaging | 3 d | ⬜ Not started | Two browsers, messages appear instantly |
 | 6 | Typing indicator | 1 d | ⬜ Not started | Animated dots while the other person types |
@@ -56,15 +56,15 @@ To update: tick the task checkboxes (`- [x]`) inside each phase. When all of a p
 - [x] Frontend: `authGuard`, plus login and register pages.
 - [x] **Done when:** a user can register, log in, reload and stay logged in, and log out (US-01, US-02).
 
-## Phase 3 – Contacts and history over REST (2 d) · ⬜ Not started
+## Phase 3 – Contacts and history over REST (2 d) · ✅ Done
 
-- [ ] `GET /api/contacts?search=`, including `unreadCount`, `lastMessagePreview` and `lastMessageAt`.
-- [ ] `GET /api/conversations/{otherUserId}/messages` with `beforeId` / `afterId` paging and a membership check.
-- [ ] A temporary `POST` to send a message. It is removed in phase 5 and only lets you test history before SignalR exists.
-- [ ] Angular: `ChatStateService`, a contacts list, and a conversation view (plain markup is fine at this stage).
-- [ ] Angular: load older messages when the user scrolls to the top.
-- [ ] Backend unit tests: validation, PairKey, unread count.
-- [ ] **Done when:** messages stored in the database show up in the right conversation, in order (US-03, US-07, US-11).
+- [x] `GET /api/contacts?search=`, including `unreadCount`, `lastMessagePreview` and `lastMessageAt`.
+- [x] `GET /api/conversations/{otherUserId}/messages` with `beforeId` / `afterId` paging and a membership check.
+- [x] A temporary `POST` to send a message. It is removed in phase 5 and only lets you test history before SignalR exists.
+- [x] Angular: `ChatStateService`, a contacts list, and a conversation view (plain markup is fine at this stage).
+- [x] Angular: load older messages when the user scrolls to the top.
+- [x] Backend unit tests: validation, PairKey, unread count.
+- [x] **Done when:** messages stored in the database show up in the right conversation, in order (US-03, US-07, US-11).
 
 ## Phase 4 – UI layout and styling (2 d) · ⬜ Not started
 
