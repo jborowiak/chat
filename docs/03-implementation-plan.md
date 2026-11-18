@@ -22,7 +22,7 @@ To update: tick the task checkboxes (`- [x]`) inside each phase. When all of a p
 | 5 | SignalR: live messaging | 3 d | ✅ Done | Two browsers, messages appear instantly |
 | 6 | Typing indicator | 1 d | ✅ Done | Animated dots while the other person types |
 | 7 | Unread badges and read state | 2 d | ✅ Done | Badge shows 3, clears on open, syncs across tabs |
-| 8 | Azure deployment | 2 d | ⬜ Not started | Same demo on the Azure URLs |
+| 8 | Azure deployment | 2 d | 🟡 In progress | Same demo on the Azure URLs |
 | 9 | Hardening and tests | 2.5 d | ⬜ Not started | E2E suite green, security checklist done |
 | 10 | *(Could)* Online presence | 0.5 d | ⬜ Not started | Green online dot |
 
@@ -109,21 +109,25 @@ To update: tick the task checkboxes (`- [x]`) inside each phase. When all of a p
 - [x] Integration test: B sends 3 → A's unread count is 3 → A calls `MarkRead` → 0, and A's second connection receives `ConversationRead`.
 - [x] **Done when:** acceptance scenario 4 passes, both live and after logging in again (US-08, US-10, BR-08 to BR-11).
 
-## Phase 8 – Azure deployment (2 d) · ⬜ Not started
+## Phase 8 – Azure deployment (2 d) · 🟡 In progress
 
-- [ ] Resource group in **West Europe** (or North Europe).
+Waiting for manual check: all files are written (`infra/main.bicep`, `infra/main.parameters.json`, `.github/workflows/api.yml` and `web.yml`, `staticwebapp.config.json`, `environment.prod.ts`, `environment.azure.ts`). The Azure-side tasks need you: follow [05-azure-deployment-runbook.md](05-azure-deployment-runbook.md) (az login, deploy, migration script, OIDC app registration, GitHub secrets, push, verify). Note: `az bicep` is not installed here, so the Bicep file was not compiled; the runbook's `what-if` step will validate it.
+
+- [ ] Resource group in **North Europe** (`rg-chat-test-jb`; decided 18 Nov 2026) — runbook step 2.
 - [ ] **Azure SQL:** logical server plus database (serverless General Purpose with auto-pause, or the free offer). Firewall: "Allow Azure services", plus your own IP for running migrations.
 - [ ] **App Service:** Linux, .NET 10, **B1** plan, 1 instance.
 - [ ] App Service configuration:
   - **WebSockets On**, **Always On On**, HTTPS only.
-  - Connection string `ChatDb`.
+  - Connection string setting `ConnectionStrings__Default` (the name the API reads; written by the Bicep template).
   - `Cors__AllowedOrigins__0 = https://<swa>.azurestaticapps.net`, and optionally `Cors__AllowedOrigins__1 = http://localhost:4200` so the local UI can use the Azure API.
   - Health check path `/health`.
 - [ ] **Application Insights**, connected to App Service.
-- [ ] **Static Web App** (Free) for the Angular build output. Set `apiBaseUrl` in `environment.prod.ts`, and add `staticwebapp.config.json` with a navigation fallback to `index.html` for deep links.
-- [ ] Migrations: create an idempotent SQL script with `dotnet ef migrations script --idempotent` and run it from the pipeline, or run `dotnet ef database update` manually for the MVP.
-- [ ] *(Optional)* GitHub Actions: `api.yml` (build → test → `azure/webapps-deploy`) and `web.yml` (the Static Web Apps deploy action).
-- [ ] *(Optional)* Describe all of the above in `infra/main.bicep`.
+- [ ] **Static Web App** (Free) for the Angular build output. Set `apiBaseUrl` in `environment.prod.ts`, and add `staticwebapp.config.json` with a navigation fallback to `index.html` for deep links. — files done (`environment.prod.ts`, `public/staticwebapp.config.json`, plus `environment.azure.ts` and an `azure` Angular configuration for scenario 6); the resource itself is created by the deployment.
+- [ ] Migrations: create an idempotent SQL script with `dotnet ef migrations script --idempotent` and run it manually from your machine for the first release (the SQL password never goes to GitHub). — script generation verified locally; running it against Azure is runbook step 4.
+- [ ] Describe all of the above in `infra/main.bicep` (written, not yet compiled or deployed). The SQL admin password is a secure parameter given at deployment time and written into the App Service settings by the template.
+- [ ] **GitHub Actions with OIDC login (decided 18 Nov 2026):** `api.yml` (build → test → `azure/login` with OIDC → deploy) and `web.yml` (the Static Web Apps deploy action). — both workflow files written; they run once the secrets exist and the files are pushed.
+  - [ ] Azure: create an app registration with a federated credential limited to this repo and the `master` branch, and give it the Contributor role on the resource group only.
+  - [ ] GitHub: store `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` (ids, not passwords) and the Static Web App deployment token. No publish profile and no SQL secrets in GitHub.
 - [ ] **Done when:** acceptance scenarios 1–5 pass on the Azure URLs, and the local UI works against the Azure API (scenario 6).
 
 ## Phase 9 – Hardening and tests (2.5 d) · ⬜ Not started
